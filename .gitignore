@@ -1,0 +1,17 @@
+# Environnement virtuel Python
+.venv/
+# Clés API - ne jamais partager ce fichier
+.env
+__pycache__/
+*.pyc
+
+# Model response cache (regenerable)
+.cache/
+
+# Test and linter caches
+.pytest_cache/
+.ruff_cache/
+
+# Local documents and runtime data (never committed)
+*.docx
+data/
