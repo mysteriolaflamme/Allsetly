@@ -22,6 +22,7 @@ from temoin.meta_api import (
 )
 from temoin.model import ModelError
 from temoin.monodepth import MonoDepthError, estimate_depth
+from temoin.qa import ask_question
 from temoin.report import create_report
 from temoin.seal import CertificateError, load_certificate, verify_certificate
 from temoin.stereo import (
@@ -105,6 +106,11 @@ def build_parser() -> argparse.ArgumentParser:
     board.add_argument("--sale", required=True, help="Path to the sale photo.")
     board.add_argument("--delivery", required=True, help="Path to the delivery photo.")
     board.add_argument("--output", default=None, help="Board PNG path.")
+    ask = sub.add_parser("ask", help="Ask a sealed case, by text or voice.")
+    ask.add_argument("certificate", help="Path to a certificate file, e.g. cert-1.json.")
+    ask.add_argument("--question", default=None, help="Text question, e.g. 'Was D2 there at sale?'")
+    ask.add_argument("--audio", default=None, help="Spoken question, e.g. question.wav.")
+    ask.add_argument("--language-bias", action="append", default=None)
     return parser
 
 
@@ -366,6 +372,47 @@ def board_main(certificate: str, sale: str, delivery: str, output: str | None) -
     return 0
 
 
+def ask_main(
+    certificate: str, question: str | None, audio: str | None, language_bias: list[str] | None
+) -> int:
+    """Answer a text or spoken question from a sealed certificate."""
+    settings = load_settings()
+    certificate_data = load_certificate(certificate)
+    if not verify_certificate(certificate_data):
+        raise CertificateError("Certificat MODIFIÉ : réponse refusée.")
+    heard: str | None = None
+    if audio is not None:
+        if not Path(audio).is_file():
+            sys.stderr.write(f"Fichier audio introuvable : « {audio} ».\n")
+            return 1
+        transcript = transcribe_audio(audio, settings=settings, language_bias=language_bias)
+        if not transcript.text:
+            sys.stderr.write("Aucune parole détectée.\n")
+            return 1
+        heard = transcript.text
+        question_text = transcript.text
+    elif question:
+        question_text = question
+    else:
+        sys.stderr.write("Indiquez --question ou --audio.\n")
+        return 1
+    answer = ask_question(
+        question_text,
+        sale=certificate_data.sale_constat,
+        delivery=certificate_data.delivery_constat,
+        comparison=certificate_data.comparison,
+        settings=settings,
+    )
+    lines = []
+    if heard is not None:
+        lines.append(f"Question entendue : {heard}")
+    lines.append(answer.answer)
+    sources = ", ".join(answer.citations) if answer.citations else "—"
+    lines.append(f"Sources : {sources}")
+    sys.stdout.write("\n".join(lines) + "\n")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI and return the exit code."""
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
@@ -397,6 +444,8 @@ def main(argv: list[str] | None = None) -> int:
             return mono_depth_main(args.source, args.wiggle, args.cloud, args.bbox)
         elif args.command == "board":
             return board_main(args.certificate, args.sale, args.delivery, args.output)
+        elif args.command == "ask":
+            return ask_main(args.certificate, args.question, args.audio, args.language_bias)
         else:
             declared = [item.strip() for item in (args.materials or "").split(",") if item.strip()]
             result = create_report(args.photo, args.code, declared_materials=declared)

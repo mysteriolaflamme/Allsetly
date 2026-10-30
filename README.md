@@ -25,6 +25,9 @@ added here (deploy guide below).
   objections) before sealing; strong objections downgrade to À VÉRIFIER.
 - **Evidence board** — side-by-side flaw crops (sale ↔ delivery) with
   match statuses, rendered from the sealed certificate.
+- **Case interrogation** — ask a sealed case in writing or by voice; the
+  answer comes only from the sealed files, with verified citations, or an
+  honest "I don't know".
 - **Sealed certificate** — SHA-256 chain + QR + WhatsApp share link.
 - **Precise segmentation** — SAM 3.1 masks overlaid on the photo.
 - **Voice declaration** — transcribed with Muse Voice Transcribe.
@@ -89,12 +92,13 @@ CLI:
 .venv\Scripts\python -m temoin video-depth tour.mp4 --cloud cloud.html
 .venv\Scripts\python -m temoin mono-depth photo.jpg --cloud cloud.html
 .venv\Scripts\python -m temoin board cert-1.json --sale sale.jpg --delivery delivery.jpg
+.venv\Scripts\python -m temoin ask cert-1.json --question "Was D2 there at sale?"
 .venv\Scripts\python -m temoin verify cert-1.json
 .venv\Scripts\python -m eval.run_eval
 ```
 
 Tests and lint from the project root: `python -m pytest`, `ruff check .`,
-`ruff format .` (244 tests, offline with a fake client).
+`ruff format .` (258 tests, offline with a fake client).
 
 ## Deploy your own (Streamlit Community Cloud)
 

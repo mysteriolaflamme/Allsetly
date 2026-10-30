@@ -11,6 +11,7 @@ PROMPT_VERSION = "2"
 COMPARE_PROMPT_VERSION = "1"
 AGENT_PROMPT_VERSION = "2"
 REDTEAM_PROMPT_VERSION = "1"
+QA_PROMPT_VERSION = "1"
 
 _SYSTEM_PROMPT = """You are Temoin, a neutral visual witness between the buyer and the seller
 of a second-hand item. You only describe what you really see in the photo.
@@ -361,6 +362,63 @@ def build_redteam_messages(
                 + _constat_context(sale, delivery)
                 + "\n"
                 + json.dumps(attack, ensure_ascii=False)
+            ),
+        },
+    ]
+
+
+_QA_SYSTEM_PROMPT = """You are Temoin's case librarian. Answer the user's question using
+ONLY the sealed case files below (sale constat, delivery constat, sealed
+verdict). A separate program verifies every citation you give: any invented
+id invalidates your answer.
+
+Rules:
+- If the files do not contain the answer, set confident=false, citations=[]
+  and answer exactly: "Je ne sais pas d'après ce dossier."
+- Every factual claim must trace to a citation: "sale:D1" (defect D1 of the
+  sale constat), "delivery:D2", "sale:challenge", "delivery:challenge",
+  "verdict" (sealed verdict and justification). Use ONLY ids that appear in
+  the files below.
+- Never invent defects, codes, verdicts or prices. Never give legal advice;
+  describe only what the files establish.
+- Reply with STRICT JSON only, exactly this shape:
+{
+  "answer": "...",
+  "citations": ["sale:D1"],
+  "confident": true
+}
+Write the answer in French.
+"""
+
+
+def build_qa_messages(
+    *, sale: Report, delivery: Report, comparison: Comparison, question: str
+) -> list[dict[str, Any]]:
+    """Build the grounded question-answering messages for a sealed case."""
+    sealed = {
+        "verdict": comparison.model_dump(
+            include={
+                "verdict",
+                "confidence",
+                "same_object",
+                "new_damage",
+                "justification",
+                "capped_reason",
+                "matches",
+                "contradictions",
+                "missing_proof",
+            }
+        ),
+    }
+    return [
+        {"role": "system", "content": _QA_SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": (
+                f"Question: {question}\nCase files:\n"
+                + _constat_context(sale, delivery)
+                + "\n"
+                + json.dumps(sealed, ensure_ascii=False)
             ),
         },
     ]

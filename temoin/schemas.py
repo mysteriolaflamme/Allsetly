@@ -188,6 +188,18 @@ class DevilChallenge(BaseModel):
     stand_by_verdict: bool = Field(description="True when the verdict survives the attack.")
 
 
+class CaseAnswer(BaseModel):
+    """Grounded answer about a sealed case, with verifiable citations."""
+
+    answer: str = Field(description="Short answer in French, grounded in the case files.")
+    citations: list[str] = Field(
+        default_factory=list,
+        max_length=6,
+        description='Evidence ids like "sale:D1", "delivery:challenge" or "verdict".',
+    )
+    confident: bool = Field(description="False when the files do not contain the answer.")
+
+
 class ComparisonDraft(BaseModel):
     """Raw structured comparison answer, before the deterministic guardrails."""
 

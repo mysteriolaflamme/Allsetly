@@ -69,6 +69,17 @@ def test_parser_board_arguments() -> None:
     assert (args.sale, args.delivery, args.output) == ("s.jpg", "d.jpg", "b.png")
 
 
+def test_parser_ask_arguments() -> None:
+    """ask with a certificate, a question and audio options parses correctly."""
+    args = build_parser().parse_args(["ask", "c1.json", "--question", "D1 ?"])
+    assert (args.command, args.certificate, args.question) == ("ask", "c1.json", "D1 ?")
+    assert args.audio is None
+    args = build_parser().parse_args(
+        ["ask", "c1.json", "--audio", "q.wav", "--language-bias", "french"]
+    )
+    assert (args.audio, args.language_bias) == ("q.wav", ["french"])
+
+
 def test_parser_verify_arguments() -> None:
     """verify with a certificate path parses correctly."""
     args = build_parser().parse_args(["verify", "cert-1.json"])

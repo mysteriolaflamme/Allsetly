@@ -300,6 +300,25 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Aucune correspondance relevée.",
         "en": "No correspondences recorded.",
     },
+    "ask_title": {"fr": "Interroger le dossier", "en": "Question the case"},
+    "ask_hint": {
+        "fr": (
+            "Posez une question à l'écrit ou à la voix ; la réponse vient "
+            "uniquement du dossier scellé."
+        ),
+        "en": "Ask in writing or by voice; the answer comes only from the sealed case.",
+    },
+    "ask_question": {"fr": "Votre question", "en": "Your question"},
+    "ask_record": {"fr": "Ou poser la question au micro", "en": "Or ask with the microphone"},
+    "ask_button": {"fr": "Poser la question", "en": "Ask the question"},
+    "ask_transcribing": {"fr": "Écoute de la question…", "en": "Listening to the question…"},
+    "ask_heard": {"fr": "Question entendue : {question}", "en": "Question heard: {question}"},
+    "ask_need": {
+        "fr": "Écrivez ou enregistrez d'abord une question.",
+        "en": "Write or record a question first.",
+    },
+    "ask_running": {"fr": "Recherche dans le dossier…", "en": "Searching the case…"},
+    "ask_sources": {"fr": "Sources", "en": "Sources"},
 }
 
 VERDICTS: dict[str, dict[str, str]] = {

@@ -18,6 +18,7 @@ from temoin.images import ImageError, decode_data_url, draw_defects, prepare_ima
 from temoin.meta_api import MetaAPIError, draw_segmentation, segment_image, transcribe_audio
 from temoin.model import ModelError
 from temoin.monodepth import MonoDepthError, estimate_depth
+from temoin.qa import ask_question
 from temoin.report import create_report
 from temoin.schemas import Certificate, Comparison, Report, TrailEntry, VideoReport
 from temoin.seal import verify_certificate, verify_chain
@@ -353,6 +354,43 @@ def delivery_flow(settings: Settings, lang: str) -> None:
         st.image(
             build_board(sale_img, delivery_img, rows, lang=lang), caption=t("board_title", lang)
         )
+        st.subheader(t("ask_title", lang))
+        st.caption(t("ask_hint", lang))
+        ask_text = st.text_input(t("ask_question", lang))
+        ask_record = st.audio_input(t("ask_record", lang))
+        if st.button(t("ask_button", lang)):
+            spoken: str | None = None
+            if ask_record is not None:
+                with st.spinner(t("ask_transcribing", lang)):
+                    try:
+                        transcript = transcribe_audio(ask_record.getvalue(), settings=settings)
+                    except (MetaAPIError, ConfigError) as error:
+                        st.error(str(error))
+                        return
+                if not transcript.text:
+                    st.warning(t("voice_empty", lang))
+                    return
+                spoken = transcript.text
+                st.caption(t("ask_heard", lang).format(question=spoken))
+            question = spoken or ask_text.strip()
+            if not question:
+                st.warning(t("ask_need", lang))
+                return
+            with st.spinner(t("ask_running", lang)):
+                try:
+                    answer = ask_question(
+                        question,
+                        sale=tx.sale_constat,
+                        delivery=tx.delivery_constat,
+                        comparison=latest.comparison,
+                        settings=settings,
+                    )
+                except (ModelError, ConfigError) as error:
+                    st.error(str(error))
+                    return
+            st.write(answer.answer)
+            sources = ", ".join(answer.citations) if answer.citations else "—"
+            st.caption(f"{t('ask_sources', lang)} : {sources}")
     show_certificate(latest, tx_dir / f"cert-{len(tx.certificates)}.qr.png", lang)
     st.subheader(t("sam_title", lang))
     overlay_path = tx_dir / "segment-delivery.png"

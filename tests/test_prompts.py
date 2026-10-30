@@ -6,12 +6,16 @@ from temoin.prompts import (
     AGENT_PROMPT_VERSION,
     COMPARE_PROMPT_VERSION,
     PROMPT_VERSION,
+    QA_PROMPT_VERSION,
+    REDTEAM_PROMPT_VERSION,
     build_agent_messages,
     build_compare_messages,
     build_constat_messages,
     build_json_retry_message,
+    build_qa_messages,
+    build_redteam_messages,
 )
-from temoin.schemas import Report
+from temoin.schemas import Comparison, Report
 
 
 def test_prompt_version_is_set() -> None:
@@ -127,3 +131,35 @@ def test_constat_messages_show_declared_materials() -> None:
     assert "DECLARED MATERIALS: cuir, bois" in messages[0]["content"]
     default = build_constat_messages(expected_code="K7", image_data_url="data:,")
     assert "DECLARED MATERIALS: none" in default[0]["content"]
+
+
+def test_redteam_messages_attack_with_constats(
+    sale_report: Report, delivery_report: Report, comparison: Comparison
+) -> None:
+    """The challenge carries constats plus verdict and demands strict JSON."""
+    assert isinstance(REDTEAM_PROMPT_VERSION, str) and REDTEAM_PROMPT_VERSION.strip()
+    messages = build_redteam_messages(
+        sale=sale_report, delivery=delivery_report, comparison=comparison
+    )
+    assert [message["role"] for message in messages] == ["system", "user"]
+    assert "ATTACK" in messages[0]["content"]
+    assert "STRICT JSON" in messages[0]["content"]
+    assert "CONFORME" in messages[1]["content"]
+
+
+def test_qa_messages_ground_question_in_case_files(
+    sale_report: Report, delivery_report: Report, comparison: Comparison
+) -> None:
+    """QA messages carry the question, the files and the citation vocabulary."""
+    assert isinstance(QA_PROMPT_VERSION, str) and QA_PROMPT_VERSION.strip()
+    messages = build_qa_messages(
+        sale=sale_report,
+        delivery=delivery_report,
+        comparison=comparison,
+        question="Was D1 there at sale?",
+    )
+    assert [message["role"] for message in messages] == ["system", "user"]
+    assert "Was D1 there at sale?" in messages[1]["content"]
+    assert "D1" in messages[1]["content"]
+    assert '"sale:D1"' in messages[0]["content"]
+    assert "Je ne sais pas d'après ce dossier." in messages[0]["content"]

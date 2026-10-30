@@ -107,7 +107,8 @@ Temoin/
 │   ├── stereo.py             ← relief CPU depuis 2 vues + viewers (GIF, nuage 3D)
 │   ├── monodepth.py          ← relief IA dense depuis 1 vue (MiDaS ONNX, CPU)
 │   ├── redteam.py            ← avocat du diable : attaque du verdict, rétrograde
-│   └── evidence.py           ← planche de preuves : crops vente/livraison
+│   ├── evidence.py           ← planche de preuves : crops vente/livraison
+│   └── qa.py                 ← interrogatoire : réponse citée depuis le dossier scellé
 ├── app.py                    ← interface Streamlit (Vente / Livraison / Vérifier)
 ├── tests/                    ← pytest, avec un faux client modèle (aucun appel réseau)
 └── eval/
@@ -166,6 +167,7 @@ Chaque étape se termine par : tests verts, ruff propre, démonstration lancée,
 | 14 | **Profondeur vidéo** : `depth_from_video` (meilleure paire de frames), CLI `video-depth`, vidéo dans l'onglet Profondeur | Relief vidéo mesuré, vues utilisées affichées |
 | 15 | **Profondeur monoculaire** : MiDaS-small ONNX sur CPU (OpenCV DNN, sans GPU), `monodepth.py`, CLI `mono-depth`, choix stéréo/mono dans l'onglet Profondeur, mention « indicatif » obligatoire | Relief IA dense sur 1 vue, téléchargement vérifié, repli net hors-ligne |
 | 16 | **Avocat du diable + planche** : `redteam.py` (auto-attaque du verdict, rétrograde vers À VÉRIFIER), `evidence.py` (crops vente/livraison côte à côte), CLI `board`, affichage app | Verdict contesté puis confirmé/rétrogradé, planche scellée rendue |
+| 17 | **Interrogatoire du dossier** : `qa.py` (réponse depuis constats scellés, citations vérifiées, repli honnête), CLI `ask` texte/voix, section app | Question vocale transcrite, réponse citée, invention refusée |
 
 **Commit git à la fin de chaque étape**, avec un message clair (`step 4: investigator agent + comparison`).
 
