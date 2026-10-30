@@ -52,6 +52,23 @@ def test_parser_compare_codes_are_optional() -> None:
     assert (args.sale_code, args.delivery_code) == (None, None)
 
 
+def test_parser_compare_redteam_flag() -> None:
+    """compare challenges by default; --no-redteam skips the devil."""
+    args = build_parser().parse_args(["compare", "vente.jpg", "livraison.jpg"])
+    assert args.redteam is True
+    args = build_parser().parse_args(["compare", "vente.jpg", "livraison.jpg", "--no-redteam"])
+    assert args.redteam is False
+
+
+def test_parser_board_arguments() -> None:
+    """board with a certificate, photos and output parses correctly."""
+    args = build_parser().parse_args(
+        ["board", "c1.json", "--sale", "s.jpg", "--delivery", "d.jpg", "--output", "b.png"]
+    )
+    assert (args.command, args.certificate) == ("board", "c1.json")
+    assert (args.sale, args.delivery, args.output) == ("s.jpg", "d.jpg", "b.png")
+
+
 def test_parser_verify_arguments() -> None:
     """verify with a certificate path parses correctly."""
     args = build_parser().parse_args(["verify", "cert-1.json"])
@@ -302,3 +319,12 @@ def test_parser_video_depth_arguments() -> None:
         "1,2,3,4",
     )
     assert (args.wiggle, args.cloud) == (None, None)
+
+
+def test_parser_mono_depth_arguments() -> None:
+    """mono-depth with a source, viewers and a box parses correctly."""
+    args = build_parser().parse_args(
+        ["mono-depth", "tour.mp4", "--wiggle", "m.gif", "--cloud", "m.html", "--bbox", "1,2,3,4"]
+    )
+    assert (args.command, args.source) == ("mono-depth", "tour.mp4")
+    assert (args.wiggle, args.cloud, args.bbox) == ("m.gif", "m.html", "1,2,3,4")

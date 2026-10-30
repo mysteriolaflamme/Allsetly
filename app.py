@@ -6,15 +6,18 @@ import urllib.parse
 from pathlib import Path
 
 import streamlit as st
+from PIL import Image
 
 from temoin.agent import run_investigation
 from temoin.compare import is_fresh
 from temoin.config import ConfigError, Settings, load_settings
+from temoin.evidence import build_board, rows_from_reports
 from temoin.forensics import analyze_photo
 from temoin.i18n import t, verdict_label
 from temoin.images import ImageError, decode_data_url, draw_defects, prepare_image
 from temoin.meta_api import MetaAPIError, draw_segmentation, segment_image, transcribe_audio
 from temoin.model import ModelError
+from temoin.monodepth import MonoDepthError, estimate_depth
 from temoin.report import create_report
 from temoin.schemas import Certificate, Comparison, Report, TrailEntry, VideoReport
 from temoin.seal import verify_certificate, verify_chain
@@ -36,7 +39,7 @@ from temoin.storage import (
     seal_comparison_in_transaction,
     transaction_path,
 )
-from temoin.video import VideoError, create_video_report, frames_dir_for
+from temoin.video import VideoError, create_video_report, extract_frames, frames_dir_for
 
 
 def show_report(report: Report, lang: str, photo: Path | None) -> None:
@@ -335,6 +338,21 @@ def delivery_flow(settings: Settings, lang: str) -> None:
         return
     latest = tx.certificates[-1]
     show_comparison(latest.comparison, lang)
+    sale_path = tx_dir / "sale.jpg"
+    delivery_path = tx_dir / "delivery.jpg"
+    if (
+        tx.sale_constat is not None
+        and tx.delivery_constat is not None
+        and sale_path.is_file()
+        and delivery_path.is_file()
+    ):
+        st.subheader(t("board_title", lang))
+        rows = rows_from_reports(tx.sale_constat, tx.delivery_constat, latest.comparison, lang=lang)
+        sale_img = Image.open(sale_path).convert("RGB")
+        delivery_img = Image.open(delivery_path).convert("RGB")
+        st.image(
+            build_board(sale_img, delivery_img, rows, lang=lang), caption=t("board_title", lang)
+        )
     show_certificate(latest, tx_dir / f"cert-{len(tx.certificates)}.qr.png", lang)
     st.subheader(t("sam_title", lang))
     overlay_path = tx_dir / "segment-delivery.png"
@@ -490,8 +508,12 @@ def video_flow(settings: Settings, lang: str) -> None:
 
 
 def depth_flow(settings: Settings, lang: str) -> None:
-    """Run the Depth Matrix flow: two views or a video, animated relief, 3D cloud."""
+    """Run the Depth Matrix flow: stereo or mono AI, animated relief, 3D cloud."""
     st.info(t("depth_hint", lang))
+    method = st.radio(
+        t("depth_method", lang), [t("depth_method_stereo", lang), t("depth_method_mono", lang)]
+    )
+    mono = method == t("depth_method_mono", lang)
     left_upload = st.file_uploader(t("depth_left", lang), type=["jpg", "jpeg", "png", "webp"])
     right_upload = st.file_uploader(t("depth_right", lang), type=["jpg", "jpeg", "png", "webp"])
     video_upload = st.file_uploader(
@@ -503,14 +525,40 @@ def depth_flow(settings: Settings, lang: str) -> None:
     depth_dir.mkdir(parents=True, exist_ok=True)
     with st.spinner(t("depth_running", lang)):
         try:
-            if video_upload is not None:
+            if mono:
+                if video_upload is not None:
+                    suffix = Path(video_upload.name).suffix.lower() or ".mp4"
+                    video_path = depth_dir / f"tour{suffix}"
+                    video_path.write_bytes(video_upload.getvalue())
+                    frames = extract_frames(
+                        video_path,
+                        max_frames=1,
+                        max_pixels=settings.image_max_pixels,
+                        max_megabytes=settings.video_max_megabytes,
+                    )
+                    left = frames[0].image
+                elif left_upload is not None or right_upload is not None:
+                    chosen = left_upload if left_upload is not None else right_upload
+                    mono_path = depth_dir / "mono.jpg"
+                    mono_path.write_bytes(chosen.getvalue())
+                    prepared = prepare_image(
+                        mono_path,
+                        max_pixels=settings.image_max_pixels,
+                        max_megabytes=settings.image_max_megabytes,
+                        jpeg_quality=settings.image_jpeg_quality,
+                    )
+                    left = decode_data_url(prepared.data_url)
+                else:
+                    st.warning(t("depth_mono_need", lang))
+                    return
+                matrix = estimate_depth(left, settings=settings)
+                picked: str | None = t("depth_mono_note", lang)
+            elif video_upload is not None:
                 suffix = Path(video_upload.name).suffix.lower() or ".mp4"
                 video_path = depth_dir / f"tour{suffix}"
                 video_path.write_bytes(video_upload.getvalue())
                 matrix, left = depth_from_video(video_path, settings=settings)
-                picked: str | None = t("depth_frames", lang).format(
-                    a=matrix.left_index, b=matrix.right_index
-                )
+                picked = t("depth_frames", lang).format(a=matrix.left_index, b=matrix.right_index)
             elif left_upload is not None and right_upload is not None:
                 left_path = depth_dir / "left.jpg"
                 right_path = depth_dir / "right.jpg"
@@ -522,10 +570,13 @@ def depth_flow(settings: Settings, lang: str) -> None:
             else:
                 st.warning(t("depth_need", lang))
                 return
-        except (StereoError, VideoError, ConfigError) as error:
+        except (StereoError, VideoError, ConfigError, MonoDepthError, ImageError) as error:
             st.error(str(error))
             return
-    st.success(t("depth_coverage", lang).format(pct=round(matrix.coverage * 100)))
+    if mono:
+        st.success(t("depth_mono_ok", lang))
+    else:
+        st.success(t("depth_coverage", lang).format(pct=round(matrix.coverage * 100)))
     if picked is not None:
         st.caption(picked)
     st.subheader(t("depth_wiggle", lang))

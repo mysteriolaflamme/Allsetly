@@ -25,10 +25,12 @@ from temoin.model import (
 from temoin.prompts import (
     AGENT_PROMPT_VERSION,
     COMPARE_PROMPT_VERSION,
+    REDTEAM_PROMPT_VERSION,
     build_agent_messages,
     build_conclude_message,
     build_json_retry_message,
 )
+from temoin.redteam import challenge_comparison
 from temoin.report import create_report
 from temoin.schemas import Comparison, ComparisonDraft, Report, TrailEntry
 from temoin.tools import AGENT_TOOLS, ToolContext, ToolResult, execute_tool
@@ -38,7 +40,10 @@ logger = logging.getLogger(__name__)
 
 def build_investigation_cache_key(*, sale_constat: str, delivery_constat: str) -> str:
     """Derive a cache key from both constats and the agent prompt versions."""
-    raw = f"{sale_constat}|{delivery_constat}|{AGENT_PROMPT_VERSION}|{COMPARE_PROMPT_VERSION}"
+    raw = (
+        f"{sale_constat}|{delivery_constat}|{AGENT_PROMPT_VERSION}"
+        f"|{COMPARE_PROMPT_VERSION}|{REDTEAM_PROMPT_VERSION}"
+    )
     return sha256(raw.encode()).hexdigest()
 
 
@@ -165,6 +170,7 @@ def run_investigation(
     settings: Settings | None = None,
     client: ChatClient | None = None,
     on_step: Callable[[TrailEntry], None] | None = None,
+    redteam: bool = True,
 ) -> Comparison:
     """Investigate a sale/delivery pair with tools and return the verdict."""
     active_settings = settings or load_settings()
@@ -284,6 +290,15 @@ def run_investigation(
             trail=trail,
             prompt_version=AGENT_PROMPT_VERSION,
             disclaimer=active_settings.human_review_disclaimer,
+            on_step=on_step,
+        )
+    if redteam:
+        comparison = challenge_comparison(
+            comparison,
+            sale=sale,
+            delivery=delivery,
+            settings=active_settings,
+            client=active_client,
             on_step=on_step,
         )
     _write_investigation_cache(active_settings, sale, delivery, comparison)

@@ -11,6 +11,7 @@ from PIL import Image
 
 from temoin.agent import run_investigation
 from temoin.config import ConfigError, load_settings
+from temoin.evidence import build_board, rows_from_reports
 from temoin.forensics import analyze_photo, ela_map
 from temoin.images import ImageError, decode_data_url, prepare_image
 from temoin.meta_api import (
@@ -20,6 +21,7 @@ from temoin.meta_api import (
     transcribe_audio,
 )
 from temoin.model import ModelError
+from temoin.monodepth import MonoDepthError, estimate_depth
 from temoin.report import create_report
 from temoin.seal import CertificateError, load_certificate, verify_certificate
 from temoin.stereo import (
@@ -32,7 +34,12 @@ from temoin.stereo import (
     relief_cloud,
     relief_wiggle,
 )
-from temoin.video import VideoError, create_video_report
+from temoin.video import (
+    SUPPORTED_VIDEO_SUFFIXES,
+    VideoError,
+    create_video_report,
+    extract_frames,
+)
 
 logger = logging.getLogger("temoin")
 
@@ -51,6 +58,13 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--sale-code", default=None, help="Code issued for the sale photo.")
     compare.add_argument(
         "--delivery-code", default=None, help="Code issued for the delivery photo."
+    )
+    compare.add_argument(
+        "--no-redteam",
+        dest="redteam",
+        action="store_false",
+        default=True,
+        help="Skip the devil's advocate challenge.",
     )
     verify = sub.add_parser("verify", help="Check a certificate file.")
     verify.add_argument("certificate", help="Path to a certificate file, e.g. cert-1.json.")
@@ -81,6 +95,16 @@ def build_parser() -> argparse.ArgumentParser:
     vdepth.add_argument("--cloud", default=None, help="Save the 3D cloud HTML here.")
     vdepth.add_argument("--bbox", default=None, help="Defect box 0-1000, e.g. 400,400,600,600.")
     vdepth.add_argument("--max-frames", type=int, default=None)
+    mono = sub.add_parser("mono-depth", help="Estimate relief from one photo or video (AI).")
+    mono.add_argument("source", help="Photo or video, e.g. photo.jpg or tour.mp4.")
+    mono.add_argument("--wiggle", default=None, help="Save the parallax GIF here.")
+    mono.add_argument("--cloud", default=None, help="Save the 3D cloud HTML here.")
+    mono.add_argument("--bbox", default=None, help="Defect box 0-1000, e.g. 400,400,600,600.")
+    board = sub.add_parser("board", help="Render the evidence board of a sealed certificate.")
+    board.add_argument("certificate", help="Path to a certificate file, e.g. cert-1.json.")
+    board.add_argument("--sale", required=True, help="Path to the sale photo.")
+    board.add_argument("--delivery", required=True, help="Path to the delivery photo.")
+    board.add_argument("--output", default=None, help="Board PNG path.")
     return parser
 
 
@@ -274,6 +298,74 @@ def video_depth_main(
     return 0
 
 
+def mono_depth_main(source: str, wiggle: str | None, cloud: str | None, bbox: str | None) -> int:
+    """Estimate AI relief from one photo or video and save the viewers."""
+    settings = load_settings()
+    path = Path(source)
+    if path.suffix.lower() in SUPPORTED_VIDEO_SUFFIXES:
+        frames = extract_frames(
+            source,
+            max_frames=1,
+            max_pixels=settings.image_max_pixels,
+            max_megabytes=settings.video_max_megabytes,
+        )
+        image = frames[0].image
+        label = f"{source} (vue {frames[0].index})"
+    else:
+        prepared = prepare_image(
+            source,
+            max_pixels=settings.image_max_pixels,
+            max_megabytes=settings.image_max_megabytes,
+            jpeg_quality=settings.image_jpeg_quality,
+        )
+        image = decode_data_url(prepared.data_url)
+        label = source
+    matrix = estimate_depth(image, settings=settings)
+    lines = [
+        f"Vue : {label}",
+        "Méthode : IA monoculaire (estimation indicative).",
+    ]
+    fallback = path.parent / (path.stem + "-mono-relief.gif")
+    lines.extend(_depth_output_lines(image, matrix, wiggle, cloud, bbox, fallback))
+    sys.stdout.write("\n".join(lines) + "\n")
+    return 0
+
+
+def board_main(certificate: str, sale: str, delivery: str, output: str | None) -> int:
+    """Render the evidence board of an intact certificate and print its path."""
+    certificate_data = load_certificate(certificate)
+    if not verify_certificate(certificate_data):
+        raise CertificateError("Certificat MODIFIÉ : planche refusée.")
+    try:
+        with Image.open(sale) as first, Image.open(delivery) as second:
+            first.load()
+            second.load()
+            sale_image, delivery_image = first.convert("RGB"), second.convert("RGB")
+    except (OSError, ValueError) as error:
+        raise ImageError(f"Impossible de lire les photos « {sale} » et « {delivery} ».") from error
+    rows = rows_from_reports(
+        certificate_data.sale_constat,
+        certificate_data.delivery_constat,
+        certificate_data.comparison,
+    )
+    board = build_board(sale_image, delivery_image, rows)
+    out_path = (
+        Path(output)
+        if output
+        else Path(certificate).parent / (Path(certificate).stem + "-board.png")
+    )
+    try:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        board.save(out_path)
+    except OSError as error:
+        raise ImageError(f"Impossible d'écrire l'image : « {out_path} ».") from error
+    comparison = certificate_data.comparison
+    sys.stdout.write(
+        f"Planche : {len(rows)} correspondance(s), verdict {comparison.verdict} -> {out_path}\n"
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI and return the exit code."""
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
@@ -287,6 +379,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.delivery,
                 sale_code=args.sale_code,
                 delivery_code=args.delivery_code,
+                redteam=args.redteam,
             )
         elif args.command == "segment":
             return segment_main(args.photo, args.concept, args.output)
@@ -300,14 +393,20 @@ def main(argv: list[str] | None = None) -> int:
             return stereo_main(args.left, args.right, args.wiggle, args.cloud, args.bbox)
         elif args.command == "video-depth":
             return video_depth_main(args.video, args.wiggle, args.cloud, args.bbox, args.max_frames)
+        elif args.command == "mono-depth":
+            return mono_depth_main(args.source, args.wiggle, args.cloud, args.bbox)
+        elif args.command == "board":
+            return board_main(args.certificate, args.sale, args.delivery, args.output)
         else:
             declared = [item.strip() for item in (args.materials or "").split(",") if item.strip()]
             result = create_report(args.photo, args.code, declared_materials=declared)
     except (
+        CertificateError,
         ConfigError,
         ImageError,
         ModelError,
         MetaAPIError,
+        MonoDepthError,
         StereoError,
         VideoError,
     ) as error:

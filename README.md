@@ -21,6 +21,10 @@ added here (deploy guide below).
 - **Deterministic verdicts** — CONFORME / ENDOMMAGÉ / À VÉRIFIER /
   NON CONFORME; the model proposes, the rules dispose (freshness cap,
   2-contradiction rule for accusations).
+- **Devil's advocate** — every verdict is self-attacked (up to 3
+  objections) before sealing; strong objections downgrade to À VÉRIFIER.
+- **Evidence board** — side-by-side flaw crops (sale ↔ delivery) with
+  match statuses, rendered from the sealed certificate.
 - **Sealed certificate** — SHA-256 chain + QR + WhatsApp share link.
 - **Precise segmentation** — SAM 3.1 masks overlaid on the photo.
 - **Voice declaration** — transcribed with Muse Voice Transcribe.
@@ -30,6 +34,9 @@ added here (deploy guide below).
 - **Depth Matrix** — CPU-only relief from two views or a video (no GPU),
   parallax GIF and interactive 3D cloud; unmeasured zones stay empty, never
   invented.
+- **Monocular AI depth** — dense indicative relief from a single photo
+  (MiDaS-small ONNX on CPU, no GPU); always labeled as estimated, never
+  proof by itself.
 - **FR/EN interface**, phone-friendly flows (Sale / Delivery / Verify).
 
 ## Evaluation
@@ -80,12 +87,14 @@ CLI:
 .venv\Scripts\python -m temoin forensics photo.jpg
 .venv\Scripts\python -m temoin stereo left.jpg right.jpg --bbox 400,400,600,600
 .venv\Scripts\python -m temoin video-depth tour.mp4 --cloud cloud.html
+.venv\Scripts\python -m temoin mono-depth photo.jpg --cloud cloud.html
+.venv\Scripts\python -m temoin board cert-1.json --sale sale.jpg --delivery delivery.jpg
 .venv\Scripts\python -m temoin verify cert-1.json
 .venv\Scripts\python -m eval.run_eval
 ```
 
 Tests and lint from the project root: `python -m pytest`, `ruff check .`,
-`ruff format .` (216 tests, offline with a fake client).
+`ruff format .` (244 tests, offline with a fake client).
 
 ## Deploy your own (Streamlit Community Cloud)
 
@@ -112,6 +121,10 @@ Tests and lint from the project root: `python -m pytest`, `ruff check .`,
 - Meta Model API: `https://api.meta.ai/v1` (key `MODEL_API_KEY`). When it is
   unreachable, Témoin degrades gracefully (constat boxes, typed declaration)
   and never invents masks or transcripts.
+- Mono AI relief: MiDaS v2.1 small ONNX (official isl-org release, ~64 MB),
+  run on CPU via OpenCV DNN in ~1 s. Downloaded once on first use into
+  `data/models/` (git-ignored) with SHA-256 verification; offline use fails
+  with a clear message instead of a fake relief.
 
 ## Privacy
 

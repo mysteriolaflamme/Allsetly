@@ -5,11 +5,12 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from temoin.schemas import Report
+from temoin.schemas import Comparison, Report
 
 PROMPT_VERSION = "2"
 COMPARE_PROMPT_VERSION = "1"
 AGENT_PROMPT_VERSION = "2"
+REDTEAM_PROMPT_VERSION = "1"
 
 _SYSTEM_PROMPT = """You are Temoin, a neutral visual witness between the buyer and the seller
 of a second-hand item. You only describe what you really see in the photo.
@@ -309,6 +310,58 @@ def build_agent_messages(
                 {"type": "image_url", "image_url": {"url": sale_data_url}},
                 {"type": "image_url", "image_url": {"url": delivery_data_url}},
             ],
+        },
+    ]
+
+
+_REDTEAM_SYSTEM_PROMPT = """You are the devil's advocate of Temoin, a neutral visual witness.
+Another investigator reached the verdict below. Your job is to ATTACK it: find
+up to 3 concrete reasons why this verdict could be WRONG (weak flaw match,
+angle or lighting illusion, unreadable code, missing proof...). Be adversarial
+but factual: only use the constats and the verdict given below, never invent
+new observations. Then decide whether the verdict survives your attack.
+
+Reply with STRICT JSON only, exactly this shape:
+{
+  "objections": [{"objection": "...", "severity": "minor|major"}],
+  "stand_by_verdict": true|false
+}
+
+Severity guide: "major" means the verdict could be wrong because of this
+objection alone; "minor" means a doubt worth noting. Write objections in
+French. An empty objections list with stand_by_verdict true confirms a solid
+verdict.
+"""
+
+
+def build_redteam_messages(
+    *, sale: Report, delivery: Report, comparison: Comparison
+) -> list[dict[str, Any]]:
+    """Build the challenge messages attacking a verdict (no photos needed)."""
+    attack = {
+        "verdict": comparison.model_dump(
+            include={
+                "verdict",
+                "confidence",
+                "same_object",
+                "new_damage",
+                "justification",
+                "matches",
+                "contradictions",
+                "missing_proof",
+            }
+        ),
+    }
+    return [
+        {"role": "system", "content": _REDTEAM_SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": (
+                "Attack this verdict. Constats first, verdict second:\n"
+                + _constat_context(sale, delivery)
+                + "\n"
+                + json.dumps(attack, ensure_ascii=False)
+            ),
         },
     ]
 

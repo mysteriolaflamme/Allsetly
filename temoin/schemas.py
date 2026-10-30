@@ -174,6 +174,20 @@ class DefectMatch(BaseModel):
         return self
 
 
+class DevilObjection(BaseModel):
+    """One reason the verdict could be wrong, raised by the devil's advocate."""
+
+    objection: str = Field(description="Short factual objection, in French.")
+    severity: Literal["minor", "major"] = Field(description="Minor doubt or major flaw.")
+
+
+class DevilChallenge(BaseModel):
+    """Self-attack on a verdict: up to 3 objections plus a final stance."""
+
+    objections: list[DevilObjection] = Field(default_factory=list, max_length=3)
+    stand_by_verdict: bool = Field(description="True when the verdict survives the attack.")
+
+
 class ComparisonDraft(BaseModel):
     """Raw structured comparison answer, before the deterministic guardrails."""
 

@@ -36,6 +36,9 @@ def _call(name: str, arguments: dict[str, Any], id: str = "call-1") -> ToolCall:
     return ToolCall(id=id, name=name, arguments=json.dumps(arguments))
 
 
+_DEVIL_CONFIRM = json.dumps({"objections": [], "stand_by_verdict": True})
+
+
 def test_run_investigation_with_zoom(
     tmp_path: Path, test_settings: Settings, draft_json: str, comparison_json: str
 ) -> None:
@@ -48,6 +51,7 @@ def test_run_investigation_with_zoom(
             _delivery_draft(draft_json, "Q9"),
             ChatAnswer(content="", tool_calls=[zoom]),
             comparison_json,
+            _DEVIL_CONFIRM,
         ]
     )
     comparison = run_investigation(
@@ -62,8 +66,8 @@ def test_run_investigation_with_zoom(
     assert comparison.verdict == "CONFORME"
     assert comparison.capped_reason is None
     actions = [entry.action for entry in comparison.trail]
-    assert actions == ["constat_sale", "constat_delivery", "tool:zoom", "verdict"]
-    assert len(client.calls) == 4
+    assert actions == ["constat_sale", "constat_delivery", "tool:zoom", "verdict", "redteam"]
+    assert len(client.calls) == 5
 
 
 def test_run_investigation_checks_both_codes(
@@ -81,6 +85,7 @@ def test_run_investigation_checks_both_codes(
             _delivery_draft(draft_json, "Q9"),
             ChatAnswer(content="", tool_calls=calls),
             comparison_json,
+            _DEVIL_CONFIRM,
         ]
     )
     comparison = run_investigation(
@@ -112,6 +117,7 @@ def test_run_investigation_request_photo_concludes_without_tools(
             _delivery_draft(draft_json, "Q9"),
             ChatAnswer(content="", tool_calls=[asked]),
             final,
+            _DEVIL_CONFIRM,
         ]
     )
     comparison = run_investigation(
@@ -123,7 +129,7 @@ def test_run_investigation_request_photo_concludes_without_tools(
         client=client,
     )
     assert comparison.verdict == "À VÉRIFIER"
-    assert len(client.calls) == 4
+    assert len(client.calls) == 5
     assert client.calls[2]["tools"] is not None
     assert client.calls[3]["tools"] is None
 
@@ -134,7 +140,7 @@ def test_run_investigation_retries_invalid_final_json(
     """An invalid final message is sent back for a new attempt."""
     sale, delivery = _photos(tmp_path)
     client = FakeChatClient(
-        [draft_json, _delivery_draft(draft_json, "Q9"), "not json", comparison_json]
+        [draft_json, _delivery_draft(draft_json, "Q9"), "not json", comparison_json, _DEVIL_CONFIRM]
     )
     comparison = run_investigation(
         sale,
@@ -145,7 +151,7 @@ def test_run_investigation_retries_invalid_final_json(
         client=client,
     )
     assert comparison.verdict == "CONFORME"
-    assert len(client.calls) == 4
+    assert len(client.calls) == 5
 
 
 def test_run_investigation_falls_back_to_single_shot(
@@ -156,6 +162,7 @@ def test_run_investigation_falls_back_to_single_shot(
     script: list[str] = [draft_json, _delivery_draft(draft_json, "Q9")]
     script += ["junk"] * test_settings.agent_max_steps
     script.append(comparison_json)
+    script.append(_DEVIL_CONFIRM)
     client = FakeChatClient(script)
     comparison = run_investigation(
         sale,
@@ -168,7 +175,7 @@ def test_run_investigation_falls_back_to_single_shot(
     assert comparison.verdict == "CONFORME"
     actions = [entry.action for entry in comparison.trail]
     assert "fallback" in actions
-    assert len(client.calls) == 2 + test_settings.agent_max_steps + 1
+    assert len(client.calls) == 2 + test_settings.agent_max_steps + 2
 
 
 def test_run_investigation_without_codes_caps_verdict(
@@ -176,7 +183,7 @@ def test_run_investigation_without_codes_caps_verdict(
 ) -> None:
     """Unknown codes fail freshness honestly, capping the verdict."""
     sale, delivery = _photos(tmp_path)
-    client = FakeChatClient([draft_json, draft_json, comparison_json])
+    client = FakeChatClient([draft_json, draft_json, comparison_json, _DEVIL_CONFIRM])
     comparison = run_investigation(sale, delivery, settings=test_settings, client=client)
     assert comparison.verdict == "À VÉRIFIER"
     assert comparison.capped_reason == "preuve de fraîcheur manquante"
@@ -187,7 +194,9 @@ def test_run_investigation_uses_cache(
 ) -> None:
     """A second identical investigation replays from disk without new calls."""
     sale, delivery = _photos(tmp_path)
-    first = FakeChatClient([draft_json, _delivery_draft(draft_json, "Q9"), comparison_json])
+    first = FakeChatClient(
+        [draft_json, _delivery_draft(draft_json, "Q9"), comparison_json, _DEVIL_CONFIRM]
+    )
     out1 = run_investigation(
         sale,
         delivery,
@@ -231,6 +240,7 @@ def test_run_investigation_emits_trail_steps(
             _delivery_draft(draft_json, "Q9"),
             ChatAnswer(content="", tool_calls=[zoom]),
             comparison_json,
+            _DEVIL_CONFIRM,
         ]
     )
     received: list[TrailEntry] = []
@@ -245,3 +255,47 @@ def test_run_investigation_emits_trail_steps(
     )
     assert [entry.action for entry in received] == [entry.action for entry in comparison.trail]
     assert received[2].action == "tool:zoom"
+
+
+def test_run_investigation_without_redteam_skips_challenge(
+    tmp_path: Path, test_settings: Settings, draft_json: str, comparison_json: str
+) -> None:
+    """redteam=False saves one call and leaves the trail without challenge."""
+    sale, delivery = _photos(tmp_path)
+    client = FakeChatClient([draft_json, _delivery_draft(draft_json, "Q9"), comparison_json])
+    comparison = run_investigation(
+        sale,
+        delivery,
+        sale_code="K7",
+        delivery_code="Q9",
+        settings=test_settings,
+        client=client,
+        redteam=False,
+    )
+    assert comparison.verdict == "CONFORME"
+    assert "redteam" not in [entry.action for entry in comparison.trail]
+    assert len(client.calls) == 3
+
+
+def test_run_investigation_redteam_downgrades(
+    tmp_path: Path, test_settings: Settings, draft_json: str, comparison_json: str
+) -> None:
+    """A major devil objection caps the investigation verdict."""
+    sale, delivery = _photos(tmp_path)
+    devil = json.dumps(
+        {
+            "objections": [{"objection": "Le match D1 est douteux.", "severity": "major"}],
+            "stand_by_verdict": False,
+        }
+    )
+    client = FakeChatClient([draft_json, _delivery_draft(draft_json, "Q9"), comparison_json, devil])
+    comparison = run_investigation(
+        sale,
+        delivery,
+        sale_code="K7",
+        delivery_code="Q9",
+        settings=test_settings,
+        client=client,
+    )
+    assert comparison.verdict == "À VÉRIFIER"
+    assert comparison.capped_reason == "avocat du diable : 1 majeure"

@@ -279,6 +279,27 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Zones sans relief mesuré : laissées vides, jamais inventées.",
         "en": "Unmeasured zones: left empty, never invented.",
     },
+    "depth_method": {"fr": "Méthode", "en": "Method"},
+    "depth_method_stereo": {"fr": "Stéréo mesurée (2 vues)", "en": "Measured stereo (2 views)"},
+    "depth_method_mono": {"fr": "IA monoculaire (1 vue)", "en": "Monocular AI (1 view)"},
+    "depth_mono_need": {
+        "fr": "Déposez une photo ou une vidéo pour l'estimation IA.",
+        "en": "Drop a photo or a video for the AI estimate.",
+    },
+    "depth_mono_note": {
+        "fr": "Relief estimé par IA : indicatif, ne prouve rien à lui seul.",
+        "en": "AI-estimated relief: indicative only, not proof by itself.",
+    },
+    "depth_mono_ok": {"fr": "Relief estimé par IA.", "en": "AI-estimated relief."},
+    "board_title": {"fr": "Planche de preuves", "en": "Evidence board"},
+    "board_sale": {"fr": "Vente", "en": "Sale"},
+    "board_delivery": {"fr": "Livraison", "en": "Delivery"},
+    "board_missing": {"fr": "non visible", "en": "not visible"},
+    "board_full": {"fr": "vue entière", "en": "whole view"},
+    "board_none": {
+        "fr": "Aucune correspondance relevée.",
+        "en": "No correspondences recorded.",
+    },
 }
 
 VERDICTS: dict[str, dict[str, str]] = {

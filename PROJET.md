@@ -104,7 +104,10 @@ Temoin/
 │   ├── i18n.py               ← textes FR/EN
 │   ├── video.py              ← constats multi-vues depuis une vidéo + fusion
 │   ├── forensics.py          ← retouches, qualité photo, coaching
-│   └── stereo.py             ← relief CPU depuis 2 vues + viewers (GIF, nuage 3D)
+│   ├── stereo.py             ← relief CPU depuis 2 vues + viewers (GIF, nuage 3D)
+│   ├── monodepth.py          ← relief IA dense depuis 1 vue (MiDaS ONNX, CPU)
+│   ├── redteam.py            ← avocat du diable : attaque du verdict, rétrograde
+│   └── evidence.py           ← planche de preuves : crops vente/livraison
 ├── app.py                    ← interface Streamlit (Vente / Livraison / Vérifier)
 ├── tests/                    ← pytest, avec un faux client modèle (aucun appel réseau)
 └── eval/
@@ -161,6 +164,8 @@ Chaque étape se termine par : tests verts, ruff propre, démonstration lancée,
 | 12 | **Forensics** : retouches (ELA/bruit/EXIF), qualité photo + coaching | Photo retouchée signalée, photo floue coachée |
 | 13 | **Depth Matrix** : relief CPU sans GPU depuis 2 vues (ORB + matrice essentielle + SGBM), `stereo.py`, GIF parallaxe + nuage 3D, CLI `stereo`, onglet Profondeur | Relief mesuré sur vraies vues, zones inconnues à −1, jamais inventées |
 | 14 | **Profondeur vidéo** : `depth_from_video` (meilleure paire de frames), CLI `video-depth`, vidéo dans l'onglet Profondeur | Relief vidéo mesuré, vues utilisées affichées |
+| 15 | **Profondeur monoculaire** : MiDaS-small ONNX sur CPU (OpenCV DNN, sans GPU), `monodepth.py`, CLI `mono-depth`, choix stéréo/mono dans l'onglet Profondeur, mention « indicatif » obligatoire | Relief IA dense sur 1 vue, téléchargement vérifié, repli net hors-ligne |
+| 16 | **Avocat du diable + planche** : `redteam.py` (auto-attaque du verdict, rétrograde vers À VÉRIFIER), `evidence.py` (crops vente/livraison côte à côte), CLI `board`, affichage app | Verdict contesté puis confirmé/rétrogradé, planche scellée rendue |
 
 **Commit git à la fin de chaque étape**, avec un message clair (`step 4: investigator agent + comparison`).
 
