@@ -1,6 +1,7 @@
 # Pinned runtime dependencies for Streamlit Community Cloud.
 meta-sam-parser==0.1.0
 openai==3.40.0
+opencv-python-headless==5.0.0.93
 pillow==13.0.0
 pillow-heif==1.8.1
 pydantic==2.14.1

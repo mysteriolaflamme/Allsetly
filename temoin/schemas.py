@@ -266,3 +266,58 @@ class Transaction(BaseModel):
     sale_constat: Report | None = None
     delivery_constat: Report | None = None
     certificates: list[Certificate] = Field(default_factory=list)
+
+
+class FusedDefect(BaseModel):
+    """One flaw confirmed across video frames, with its confirmation count."""
+
+    id: str = Field(description="Stable identifier, e.g. F1.")
+    type: str = Field(description="Flaw kind: scratch, stain, wear, crack, dent...")
+    description: str = Field(description="Factual description of the flaw.")
+    zone: str = Field(description="Readable position of the flaw on the item.")
+    severity: Severity
+    distinctive: bool = Field(description="True when this flaw identifies this item.")
+    confirmations: int = Field(description="Frames where this flaw was matched.")
+    frames: list[int] = Field(
+        default_factory=list, description="0-based indices of matching frames."
+    )
+    bbox: list[BBoxCoord] | None = Field(
+        default=None,
+        min_length=4,
+        max_length=4,
+        description="Box from the best occurrence, 0-1000.",
+    )
+
+
+class VideoChallenge(BaseModel):
+    """Challenge-code observations across video frames."""
+
+    expected_code: str = Field(description="Challenge code the seller had to show.")
+    seen_frames: int = Field(description="Frames where the expected code was read.")
+    total_frames: int = Field(description="Frames analyzed in the video.")
+    read_code: str | None = Field(
+        default=None, description="Code read on the clearest frame, if any."
+    )
+    verified: bool = Field(description="True when the code was read on >=1 frame.")
+
+
+class FrameReport(BaseModel):
+    """Constat of one video frame."""
+
+    frame_index: int = Field(description="0-based index in the sampled frames.")
+    timestamp_s: float = Field(description="Frame timestamp in seconds.")
+    report: Report
+
+
+class VideoReport(BaseModel):
+    """Fused multi-view constat of a video."""
+
+    description: str
+    fused_defects: list[FusedDefect] = Field(default_factory=list)
+    frames: list[FrameReport] = Field(default_factory=list)
+    challenge: VideoChallenge
+    checkpoints: list[Checkpoint] = Field(default_factory=list)
+    alerts: list[Alert] = Field(default_factory=list)
+    video_sha256: str
+    created_at_utc: datetime
+    prompt_version: str

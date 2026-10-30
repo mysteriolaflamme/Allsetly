@@ -40,6 +40,8 @@ class Settings:
     data_dir: Path = Path("data")
     model_api_url: str = "https://api.meta.ai/v1"
     model_api_key: str = ""
+    video_max_frames: int = 6
+    video_max_megabytes: float = 200.0
 
 
 def _read_streamlit_secrets() -> dict[str, str]:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -10,7 +11,14 @@ import pytest
 from temoin.__main__ import build_parser, main
 from temoin.config import Settings
 from temoin.meta_api import Segmentation, SegmentMask, VoiceTranscript, VoiceTurn
-from temoin.schemas import Comparison, Report
+from temoin.schemas import (
+    Comparison,
+    FrameReport,
+    FusedDefect,
+    Report,
+    VideoChallenge,
+    VideoReport,
+)
 from temoin.seal import seal_comparison
 
 
@@ -149,3 +157,59 @@ def test_transcribe_command_prints_text(
     out = capsys.readouterr().out
     assert "[   0.50s] A: bonjour" in out
     assert "Durée : 2.5 s" in out
+
+
+def test_parser_video_constat_arguments() -> None:
+    """video-constat with a video, a code and max-frames parses correctly."""
+    args = build_parser().parse_args(
+        ["video-constat", "tour.mp4", "--code", "K7", "--max-frames", "4"]
+    )
+    assert (args.command, args.video, args.code, args.max_frames) == (
+        "video-constat",
+        "tour.mp4",
+        "K7",
+        4,
+    )
+
+
+def test_video_constat_command_prints_fusion(
+    monkeypatch: pytest.MonkeyPatch,
+    test_settings: Settings,
+    sale_report: Report,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """video-constat prints views, fused flaws and code coverage."""
+    monkeypatch.setattr("temoin.__main__.load_settings", lambda *args: test_settings)
+    video = VideoReport(
+        description="Casque beige.",
+        fused_defects=[
+            FusedDefect(
+                id="F1",
+                type="rayure",
+                description="R.",
+                zone="devant",
+                severity="moderate",
+                distinctive=True,
+                confirmations=2,
+                frames=[0, 1],
+            )
+        ],
+        frames=[
+            FrameReport(frame_index=0, timestamp_s=0.0, report=sale_report),
+            FrameReport(frame_index=1, timestamp_s=1.0, report=sale_report),
+        ],
+        challenge=VideoChallenge(
+            expected_code="K7", seen_frames=2, total_frames=2, read_code="K7", verified=True
+        ),
+        checkpoints=[],
+        alerts=[],
+        video_sha256="v" * 64,
+        created_at_utc=datetime.now(UTC),
+        prompt_version="1",
+    )
+    monkeypatch.setattr("temoin.__main__.create_video_report", lambda *a, **k: video)
+    assert main(["video-constat", "tour.mp4", "--code", "K7"]) == 0
+    out = capsys.readouterr().out
+    assert "Vues analysées : 2" in out
+    assert "F1" in out
+    assert "2/2 vues" in out

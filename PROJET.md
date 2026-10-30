@@ -101,7 +101,9 @@ Temoin/
 │   ├── challenge.py          ← génération/validation des codes défi
 │   ├── seal.py               ← chaîne d'empreintes + certificat + QR
 │   ├── storage.py            ← transactions en JSON dans data/ (ignoré par git)
-│   └── i18n.py               ← textes FR/EN
+│   ├── i18n.py               ← textes FR/EN
+│   ├── video.py              ← constats multi-vues depuis une vidéo + fusion
+│   └── forensics.py          ← retouches, qualité photo, coaching
 ├── app.py                    ← interface Streamlit (Vente / Livraison / Vérifier)
 ├── tests/                    ← pytest, avec un faux client modèle (aucun appel réseau)
 └── eval/
@@ -153,6 +155,9 @@ Chaque étape se termine par : tests verts, ruff propre, démonstration lancée,
 | 7 | **Meta Model API + robustesse** : `meta_api.py` (SAM 3.1 pour les masques, Voice Transcribe pour la déclaration vocale, avec replis), injection textuelle, photo d'écran, flou | Masques SAM affichés, tests d'attaque passés |
 | 8 | **Évaluation + README + déploiement** (Streamlit Community Cloud ou Hugging Face Spaces), section « Built during the hackathon », « Meta models used » | `RESULTS.md` publié, démo en ligne, dépôt public |
 | 9 | Vidéo de 3 minutes + post X + soumission | Soumis avant le 4/11 21:00 ET |
+| 10 | **Témoin Vidéo** : `video.py` (extraction frames, constats multi-vues, fusion), CLI `video-constat`, onglet Vidéo | Constat vidéo fusionné sur une vraie vidéo, défauts confirmés sur ≥2 vues |
+| 11 | **Matières + état** : matières annoncées/observées, note A/B/C/D, facteurs de valeur | Contrefaçon matière détectée en démo, note affichée |
+| 12 | **Forensics** : retouches (ELA/bruit/EXIF), qualité photo + coaching | Photo retouchée signalée, photo floue coachée |
 
 **Commit git à la fin de chaque étape**, avec un message clair (`step 4: investigator agent + comparison`).
 

@@ -192,6 +192,32 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "No sealed certificate in this case.",
     },
     "err_photo_first": {"fr": "Déposez d'abord une photo.", "en": "Upload a photo first."},
+    "tab_video": {"fr": "Vidéo", "en": "Video"},
+    "vid_hint": {
+        "fr": "Filmez l'objet en tournant lentement autour, code visible, puis déposez la vidéo.",
+        "en": "Film the item with a slow walkaround, code visible, then drop the video.",
+    },
+    "vid_code": {"fr": "Code défi montré dans la vidéo", "en": "Challenge code shown in the video"},
+    "vid_upload": {"fr": "Vidéo du tour de l'objet", "en": "Walkaround video of the item"},
+    "vid_analyze": {"fr": "Analyser la vidéo", "en": "Analyze the video"},
+    "vid_running": {"fr": "Analyse des vues en cours…", "en": "Analyzing views…"},
+    "vid_no_file": {"fr": "Déposez d'abord une vidéo.", "en": "Upload a video first."},
+    "vid_need_code": {
+        "fr": "Indiquez d'abord le code défi de la vidéo.",
+        "en": "Enter the video challenge code first.",
+    },
+    "vid_views": {"fr": "Vues analysées", "en": "Analyzed views"},
+    "vid_view": {"fr": "Vue", "en": "View"},
+    "vid_fresh_ok": {
+        "fr": "Code vu sur {seen}/{total} vues",
+        "en": "Code seen on {seen}/{total} views",
+    },
+    "vid_fresh_ko": {
+        "fr": "Code non vu — filmez le papier avec l'objet",
+        "en": "Code not seen — film the paper with the item",
+    },
+    "vid_fused": {"fr": "Défauts confirmés multi-vues", "en": "Multi-view confirmed flaws"},
+    "vid_confirmed": {"fr": "Confirmé sur", "en": "Confirmed on"},
 }
 
 VERDICTS: dict[str, dict[str, str]] = {

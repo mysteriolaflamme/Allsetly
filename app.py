@@ -15,7 +15,7 @@ from temoin.images import ImageError, decode_data_url, draw_defects, prepare_ima
 from temoin.meta_api import MetaAPIError, draw_segmentation, segment_image
 from temoin.model import ModelError
 from temoin.report import create_report
-from temoin.schemas import Certificate, Comparison, Report, TrailEntry
+from temoin.schemas import Certificate, Comparison, Report, TrailEntry, VideoReport
 from temoin.seal import verify_certificate, verify_chain
 from temoin.storage import (
     StorageError,
@@ -27,6 +27,7 @@ from temoin.storage import (
     seal_comparison_in_transaction,
     transaction_path,
 )
+from temoin.video import VideoError, create_video_report, frames_dir_for
 
 
 def show_report(report: Report, lang: str, photo: Path | None) -> None:
@@ -335,6 +336,94 @@ def verify_flow(settings: Settings, lang: str) -> None:
             st.error(t("ver_chain_ko", lang))
 
 
+def show_video_report(report: VideoReport, lang: str, settings: Settings) -> None:
+    """Render a fused video constat: filmstrip, freshness, confirmed flaws."""
+    st.write(f"**{t('report_object', lang)}** : {report.description}")
+    frames_dir = frames_dir_for(settings, report.video_sha256)
+    st.subheader(t("vid_views", lang))
+    columns = st.columns(len(report.frames))
+    for column, frame in zip(columns, report.frames, strict=True):
+        path = frames_dir / f"frame-{frame.frame_index:02d}.jpg"
+        if path.is_file():
+            column.image(
+                draw_defects(path, frame.report.defects),
+                caption=f"{t('vid_view', lang)} {frame.frame_index + 1} · {frame.timestamp_s}s",
+            )
+    seen = report.challenge.seen_frames
+    total = report.challenge.total_frames
+    if report.challenge.verified:
+        st.success(t("vid_fresh_ok", lang).format(seen=seen, total=total))
+    else:
+        st.warning(t("vid_fresh_ko", lang))
+    if report.alerts:
+        st.subheader(t("alerts", lang))
+        for alert in report.alerts:
+            st.warning(alert.message)
+    st.subheader(t("vid_fused", lang))
+    if not report.fused_defects:
+        st.write(t("report_none", lang))
+    else:
+        severity_names = {
+            "minor": t("severity_minor", lang),
+            "moderate": t("severity_moderate", lang),
+            "major": t("severity_major", lang),
+        }
+        st.table(
+            [
+                {
+                    "ID": flaw.id,
+                    "Type": flaw.type,
+                    "Zone": flaw.zone,
+                    t("col_severity", lang): severity_names.get(flaw.severity, flaw.severity),
+                    t("vid_confirmed", lang): f"{flaw.confirmations}/{len(report.frames)}",
+                }
+                for flaw in report.fused_defects
+            ]
+        )
+    if report.checkpoints:
+        st.subheader(t("report_checkpoints", lang))
+        for number, point in enumerate(report.checkpoints, start=1):
+            st.write(f"{number}. [{point.defect_id}] {point.instruction}")
+
+
+def video_flow(settings: Settings, lang: str) -> None:
+    """Run the multi-view video flow: upload, analyse, filmstrip, fusion."""
+    st.info(t("vid_hint", lang))
+    code = st.text_input(t("vid_code", lang), value=st.session_state.get("vid_code", ""))
+    upload = st.file_uploader(t("vid_upload", lang), type=["mp4", "mov", "webm", "avi", "m4v"])
+    if st.button(t("vid_analyze", lang)):
+        st.session_state.vid_code = code.strip()
+        if upload is None:
+            st.warning(t("vid_no_file", lang))
+        elif not code.strip():
+            st.warning(t("vid_need_code", lang))
+        else:
+            suffix = Path(upload.name).suffix.lower() or ".mp4"
+            video_path = settings.data_dir / "videos" / f"upload{suffix}"
+            video_path.parent.mkdir(parents=True, exist_ok=True)
+            video_path.write_bytes(upload.getvalue())
+            with st.spinner(t("vid_running", lang)):
+                progress = st.progress(0)
+
+                def _tick(done: int, total: int) -> None:
+                    """Advance the frame progress bar."""
+                    progress.progress(done / total)
+
+                try:
+                    report = create_video_report(
+                        video_path, code.strip(), settings=settings, on_frame=_tick
+                    )
+                except (VideoError, ConfigError, ImageError, ModelError) as error:
+                    st.error(str(error))
+                    return
+            st.session_state.vid_report = report.model_dump_json()
+            st.rerun()
+    saved = st.session_state.get("vid_report")
+    if not saved:
+        return
+    show_video_report(VideoReport.model_validate_json(saved), lang, settings)
+
+
 st.set_page_config(page_title="Témoin", layout="centered")
 
 choice = st.sidebar.radio("Langue / Language", ["Français", "English"])
@@ -350,8 +439,8 @@ except ConfigError as error:
     st.error(str(error))
     st.stop()
 
-sale_tab, delivery_tab, verify_tab = st.tabs(
-    [t("tab_sale", lang), t("tab_delivery", lang), t("tab_verify", lang)]
+sale_tab, delivery_tab, verify_tab, video_tab = st.tabs(
+    [t("tab_sale", lang), t("tab_delivery", lang), t("tab_verify", lang), t("tab_video", lang)]
 )
 with sale_tab:
     sale_flow(settings, lang)
@@ -359,3 +448,5 @@ with delivery_tab:
     delivery_flow(settings, lang)
 with verify_tab:
     verify_flow(settings, lang)
+with video_tab:
+    video_flow(settings, lang)

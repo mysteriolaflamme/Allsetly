@@ -6,6 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
     "meta-sam_parser",
     "openai",
+    "opencv-python-headless",
     "pillow",
     "pydantic>=2",
     "python-dotenv",

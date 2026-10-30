@@ -19,6 +19,7 @@ from temoin.meta_api import (
 from temoin.model import ModelError
 from temoin.report import create_report
 from temoin.seal import CertificateError, load_certificate, verify_certificate
+from temoin.video import VideoError, create_video_report
 
 logger = logging.getLogger("temoin")
 
@@ -47,6 +48,10 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe.add_argument("audio", help="Path to the voice note, e.g. note.wav.")
     transcribe.add_argument("--language-bias", action="append", default=None)
     transcribe.add_argument("--keywords", action="append", default=None)
+    video = sub.add_parser("video-constat", help="Fuse a multi-view constat from a video.")
+    video.add_argument("video", help="Path to the video, e.g. tour.mp4.")
+    video.add_argument("--code", required=True, help="Challenge code, e.g. K7.")
+    video.add_argument("--max-frames", type=int, default=None)
     return parser
 
 
@@ -124,6 +129,27 @@ def transcribe_main(audio: str, language_bias: list[str] | None, keywords: list[
     return 0
 
 
+def video_main(video: str, code: str, max_frames: int | None) -> int:
+    """Analyse a video and print its fused constat."""
+    settings = load_settings()
+    report = create_video_report(video, code, settings=settings, max_frames=max_frames)
+    lines = [
+        f"Vues analysées : {len(report.frames)}",
+        f"Objet : {report.description}",
+        f"Code : lu sur {report.challenge.seen_frames}/{report.challenge.total_frames} vues",
+        f"Défauts fusionnés : {len(report.fused_defects)}",
+    ]
+    for flaw in report.fused_defects:
+        noun = "vue" if flaw.confirmations == 1 else "vues"
+        lines.append(
+            f"  - {flaw.id} ({flaw.type}, {flaw.zone}) : vu sur {flaw.confirmations} {noun}."
+        )
+    for alert in report.alerts:
+        lines.append(f"Alerte : {alert.message}")
+    sys.stdout.write("\n".join(lines) + "\n")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI and return the exit code."""
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
@@ -142,9 +168,11 @@ def main(argv: list[str] | None = None) -> int:
             return segment_main(args.photo, args.concept, args.output)
         elif args.command == "transcribe":
             return transcribe_main(args.audio, args.language_bias, args.keywords)
+        elif args.command == "video-constat":
+            return video_main(args.video, args.code, args.max_frames)
         else:
             result = create_report(args.photo, args.code)
-    except (ConfigError, ImageError, ModelError, MetaAPIError) as error:
+    except (ConfigError, ImageError, ModelError, MetaAPIError, VideoError) as error:
         sys.stderr.write(f"{error}\n")
         return 1
     sys.stdout.write(result.model_dump_json(indent=2, ensure_ascii=False) + "\n")
