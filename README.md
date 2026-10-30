@@ -32,7 +32,7 @@ added here (deploy guide below).
 under transforms, missing challenge codes, object-not-visible fraud attempts.
 Full run: `python -m eval.run_eval`. Report: `eval/RESULTS.md`.
 
-- Accuracy: **19/20 (95%)** (see `eval/RESULTS.md`)
+- Accuracy: **18/20 (90%)** (see `eval/RESULTS.md`)
 - False accusations (NON CONFORME on a same-object pair): **0 (0 %)** (goal: 0 %)
 - Different-object pairs cleared as same: **0** (goal: 0)
 

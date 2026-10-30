@@ -355,7 +355,8 @@ def main(
     metrics = compute_metrics(records)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    command = " ".join(["python -m eval.run_eval", *(argv or [])])
+    shown = argv if argv is not None else sys.argv[1:]
+    command = " ".join(["python -m eval.run_eval", *shown])
     out.write_text(
         render_results(
             records,
