@@ -9,7 +9,7 @@ from temoin.schemas import Report
 
 PROMPT_VERSION = "1"
 COMPARE_PROMPT_VERSION = "1"
-AGENT_PROMPT_VERSION = "1"
+AGENT_PROMPT_VERSION = "2"
 
 _SYSTEM_PROMPT = """You are Temoin, a neutral visual witness between the buyer and the seller
 of a second-hand item. You only describe what you really see in the photo.
@@ -162,6 +162,10 @@ YOUR TOOLS:
 - request_photo: ask the user for a missing proof photo (zone and
   instruction). Use it only when a decisive flaw is not visible;
   the run then ends and you must conclude À VÉRIFIER.
+- segment: outline one named object in one photo with SAM masks
+  (photo "sale" or "delivery", concept as a short noun phrase like
+  "headphones"). Use it when a flaw sits on an object edge or when
+  boxes disagree; the overlay image shows the exact contours.
 
 YOUR FINAL MESSAGE (no tool call) must be STRICT JSON only, exactly
 this shape:

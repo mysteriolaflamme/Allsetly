@@ -11,7 +11,8 @@ from temoin.agent import run_investigation
 from temoin.compare import is_fresh
 from temoin.config import ConfigError, Settings, load_settings
 from temoin.i18n import t, verdict_label
-from temoin.images import ImageError, draw_defects
+from temoin.images import ImageError, decode_data_url, draw_defects, prepare_image
+from temoin.meta_api import MetaAPIError, draw_segmentation, segment_image
 from temoin.model import ModelError
 from temoin.report import create_report
 from temoin.schemas import Certificate, Comparison, Report, TrailEntry
@@ -269,6 +270,40 @@ def delivery_flow(settings: Settings, lang: str) -> None:
     latest = tx.certificates[-1]
     show_comparison(latest.comparison, lang)
     show_certificate(latest, tx_dir / f"cert-{len(tx.certificates)}.qr.png", lang)
+    st.subheader(t("sam_title", lang))
+    overlay_path = tx_dir / "segment-delivery.png"
+    concept = st.text_input(t("sam_concept", lang), value=st.session_state.get("sam_concept", ""))
+    if st.button(t("sam_button", lang)):
+        st.session_state.sam_concept = concept.strip()
+        if not concept.strip():
+            st.warning(t("sam_need_concept", lang))
+        elif not (tx_dir / "delivery.jpg").is_file():
+            st.warning(t("err_photo_first", lang))
+        else:
+            with st.spinner(t("sam_running", lang)):
+                try:
+                    prepared = prepare_image(
+                        tx_dir / "delivery.jpg",
+                        max_pixels=settings.image_max_pixels,
+                        max_megabytes=settings.image_max_megabytes,
+                        jpeg_quality=settings.image_jpeg_quality,
+                    )
+                    segmentation = segment_image(
+                        prepared.data_url, concept.strip(), settings=settings
+                    )
+                except (ImageError, MetaAPIError) as error:
+                    st.error(str(error))
+                else:
+                    draw_segmentation(decode_data_url(prepared.data_url), segmentation).save(
+                        overlay_path
+                    )
+                    st.session_state.sam_masks = len(segmentation.masks)
+                    st.rerun()
+    if overlay_path.is_file():
+        if st.session_state.get("sam_masks") == 0:
+            st.info(t("sam_none", lang).format(concept=st.session_state.get("sam_concept", "")))
+        else:
+            st.image(str(overlay_path), caption=t("sam_caption", lang))
 
 
 def verify_flow(settings: Settings, lang: str) -> None:

@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+import base64
 import importlib.util
+import io
 from pathlib import Path
 
 import pytest
 from PIL import Image
 
-from temoin.images import ImageError, compute_sha256, draw_defects, prepare_image
+from temoin.images import (
+    ImageError,
+    compute_sha256,
+    decode_data_url,
+    draw_defects,
+    prepare_image,
+)
 from temoin.schemas import Defect
 
 
@@ -111,3 +119,18 @@ def test_draw_defects_frames_only_boxes(tmp_path: Path) -> None:
     assert framed.mode == "RGB"
     assert photo.read_bytes() == before
     assert framed.getpixel((0, 0)) != (255, 255, 255)
+
+
+def test_decode_data_url_roundtrip() -> None:
+    """A data URL decodes back to the same image size."""
+    buffer = io.BytesIO()
+    Image.new("RGB", (37, 23), color=(9, 8, 7)).save(buffer, format="JPEG")
+    url = "data:image/jpeg;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
+    assert decode_data_url(url).size == (37, 23)
+
+
+def test_decode_data_url_rejects_garbage() -> None:
+    """Malformed data URLs raise a plain-language error."""
+    for bad in ("nope", "data:text/plain;base64,aaaa", "data:image/jpeg;base64,!!!"):
+        with pytest.raises(ImageError):
+            decode_data_url(bad)

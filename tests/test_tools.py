@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import pytest
 from PIL import Image
 
+from temoin.config import Settings
+from temoin.meta_api import MetaAPIError, Segmentation, SegmentMask
 from temoin.schemas import Report
 from temoin.tools import (
     AGENT_TOOLS,
@@ -21,7 +25,9 @@ from temoin.tools import (
 
 
 @pytest.fixture
-def context(tmp_path: Path, sale_report: Report, delivery_report: Report) -> ToolContext:
+def context(
+    tmp_path: Path, sale_report: Report, delivery_report: Report, test_settings: Settings
+) -> ToolContext:
     """Return a tool context with two real photo files."""
     sale_photo = tmp_path / "vente.jpg"
     delivery_photo = tmp_path / "livraison.jpg"
@@ -34,13 +40,14 @@ def context(tmp_path: Path, sale_report: Report, delivery_report: Report) -> Too
         delivery_photo=delivery_photo,
         max_pixels=1024,
         jpeg_quality=90,
+        settings=test_settings,
     )
 
 
-def test_agent_tools_are_the_step_four_tools() -> None:
-    """Step 4 exposes exactly zoom, match, challenge check and photo ask."""
+def test_agent_tools_are_the_known_tools() -> None:
+    """The agent exposes match, zoom, challenge check, photo ask and segment."""
     names = {tool["function"]["name"] for tool in AGENT_TOOLS}
-    assert names == {"match_defects", "zoom", "check_challenge", "request_photo"}
+    assert names == {"match_defects", "zoom", "check_challenge", "request_photo", "segment"}
 
 
 def test_zoom_photo_enlarges_region(tmp_path: Path) -> None:
@@ -112,3 +119,74 @@ def test_execute_tool_reports_errors_as_content(context: ToolContext) -> None:
     assert bad.content.startswith("Tool error:")
     unknown = execute_tool("fly", {}, context)
     assert "Unknown tool" in unknown.content
+
+
+def _fake_segmentation() -> Segmentation:
+    """Return one synthetic headphone mask on a 1000x800 photo."""
+    width, height = 90, 80
+    mask = SegmentMask(
+        object_id="0",
+        left=10.0,
+        top=10.0,
+        right=100.0,
+        bottom=90.0,
+        width=width,
+        height=height,
+        pixels=bytes([1]) * (width * height),
+    )
+    return Segmentation(concept="headphones", image_width=1000, image_height=800, masks=(mask,))
+
+
+def test_segment_tool_outlines_object(
+    monkeypatch: pytest.MonkeyPatch, context: ToolContext
+) -> None:
+    """The segment tool returns boxes plus an overlay image."""
+    seen: dict[str, Any] = {}
+
+    def fake_segment(
+        data_url: str, concept: str, *, settings: Settings | None = None
+    ) -> Segmentation:
+        seen["concept"] = concept
+        return _fake_segmentation()
+
+    monkeypatch.setattr("temoin.tools.segment_image", fake_segment)
+    result = execute_tool("segment", {"photo": "sale", "concept": "headphones"}, context)
+    assert seen["concept"] == "headphones"
+    assert "1 mask(s)" in result.content
+    assert "0:[10,10,100,90]" in result.content
+    assert result.image_data_url is not None
+    assert result.image_data_url.startswith("data:image/jpeg;base64,")
+
+
+def test_segment_tool_degrades_without_settings(context: ToolContext) -> None:
+    """Without settings the tool guides back to the constat boxes."""
+    bare = replace(context, settings=None)
+    result = execute_tool("segment", {"photo": "delivery", "concept": "x"}, bare)
+    assert "unavailable" in result.content
+    assert "constat bboxes" in result.content
+    assert result.image_data_url is None
+
+
+def test_segment_tool_degrades_on_meta_error(
+    monkeypatch: pytest.MonkeyPatch, context: ToolContext
+) -> None:
+    """A Meta failure is reported as content, never raised."""
+
+    def failing(data_url: str, concept: str, *, settings: Settings | None = None) -> Segmentation:
+        raise MetaAPIError("nope")
+
+    monkeypatch.setattr("temoin.tools.segment_image", failing)
+    result = execute_tool("segment", {"photo": "sale", "concept": "x"}, context)
+    assert "unavailable" in result.content
+    assert "nope" in result.content
+    assert result.image_data_url is None
+
+
+def test_segment_tool_rejects_bad_arguments(context: ToolContext) -> None:
+    """Bad photo or concept values become tool errors."""
+    bad_photo = execute_tool("segment", {"photo": "sideways", "concept": "x"}, context)
+    assert bad_photo.content.startswith("Tool error:")
+    missing = execute_tool("segment", {"photo": "sale"}, context)
+    assert missing.content.startswith("Tool error:")
+    blank = execute_tool("segment", {"photo": "sale", "concept": "  "}, context)
+    assert blank.content.startswith("Tool error:")

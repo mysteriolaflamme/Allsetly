@@ -38,6 +38,8 @@ class Settings:
     challenge_validity_minutes: int = 15
     challenge_max_issues: int = 100
     data_dir: Path = Path("data")
+    model_api_url: str = "https://api.meta.ai/v1"
+    model_api_key: str = ""
 
 
 def _read_streamlit_secrets() -> dict[str, str]:
@@ -69,4 +71,6 @@ def load_settings(env_file: str | None = None) -> Settings:
         baseten_api_key=api_key,
         model_name=get("MODEL_NAME") or Settings.model_name,
         model_base_url=get("MODEL_BASE_URL") or Settings.model_base_url,
+        model_api_key=get("MODEL_API_KEY"),
+        model_api_url=get("MODEL_API_URL") or Settings.model_api_url,
     )

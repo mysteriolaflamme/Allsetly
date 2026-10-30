@@ -102,7 +102,7 @@ def test_agent_messages_name_tools_and_demand_zoom(
         delivery_data_url="data:,del",
     )
     system = messages[0]["content"]
-    for tool in ("match_defects", "zoom", "check_challenge", "request_photo"):
+    for tool in ("match_defects", "zoom", "check_challenge", "request_photo", "segment"):
         assert tool in system
     assert "at most 8 steps" in system
     assert "MUST" in system

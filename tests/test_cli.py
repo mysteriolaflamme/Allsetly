@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 
 from temoin.__main__ import build_parser, main
+from temoin.config import Settings
+from temoin.meta_api import Segmentation, SegmentMask, VoiceTranscript, VoiceTurn
 from temoin.schemas import Comparison, Report
 from temoin.seal import seal_comparison
 
@@ -75,3 +77,75 @@ def test_verify_command_reports_intact_and_tampered(
     assert main(["verify", str(bad)]) == 1
     assert "MODIFIÉ" in capsys.readouterr().out
     assert main(["verify", str(tmp_path / "nope.json")]) == 1
+
+
+def test_parser_segment_arguments() -> None:
+    """segment with a photo and a concept parses correctly."""
+    args = build_parser().parse_args(["segment", "photo.jpg", "--concept", "headphones"])
+    assert (args.command, args.photo, args.concept, args.output) == (
+        "segment",
+        "photo.jpg",
+        "headphones",
+        None,
+    )
+
+
+def test_parser_transcribe_arguments() -> None:
+    """transcribe with bias flags parses correctly."""
+    args = build_parser().parse_args(
+        ["transcribe", "note.wav", "--language-bias", "french", "--keywords", "casque"]
+    )
+    assert (args.command, args.audio) == ("transcribe", "note.wav")
+    assert (args.language_bias, args.keywords) == (["french"], ["casque"])
+
+
+def test_segment_command_saves_overlay(
+    monkeypatch: pytest.MonkeyPatch,
+    photo_path: Path,
+    test_settings: Settings,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """segment writes the overlay PNG next to the photo and prints a summary."""
+    monkeypatch.setattr("temoin.__main__.load_settings", lambda *args: test_settings)
+    width, height = 90, 80
+    mask = SegmentMask(
+        object_id="0",
+        left=10.0,
+        top=10.0,
+        right=100.0,
+        bottom=90.0,
+        width=width,
+        height=height,
+        pixels=bytes([1]) * (width * height),
+    )
+    segmentation = Segmentation(
+        concept="headphones", image_width=640, image_height=480, masks=(mask,)
+    )
+    monkeypatch.setattr("temoin.__main__.segment_image", lambda *a, **k: segmentation)
+    assert main(["segment", str(photo_path), "--concept", "headphones"]) == 0
+    assert (photo_path.parent / "photo-sam.png").is_file()
+    out = capsys.readouterr().out
+    assert "1 masque" in out
+    assert "headphones" in out
+
+
+def test_transcribe_command_prints_text(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_settings: Settings,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """transcribe prints the turns and the duration."""
+    monkeypatch.setattr("temoin.__main__.load_settings", lambda *args: test_settings)
+    transcript = VoiceTranscript(
+        text="bonjour",
+        duration_seconds=2.5,
+        turns=(VoiceTurn(start_seconds=0.5, text="bonjour", speaker="A"),),
+    )
+    monkeypatch.setattr("temoin.__main__.transcribe_audio", lambda *a, **k: transcript)
+    audio = tmp_path / "note.wav"
+    audio.write_bytes(b"fake")
+    assert main(["transcribe", str(audio)]) == 0
+    out = capsys.readouterr().out
+    assert "[   0.50s] A: bonjour" in out
+    assert "Durée : 2.5 s" in out

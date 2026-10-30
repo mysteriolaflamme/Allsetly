@@ -207,6 +207,7 @@ def run_investigation(
         delivery_photo=Path(delivery_photo),
         max_pixels=active_settings.image_max_pixels,
         jpeg_quality=active_settings.image_jpeg_quality,
+        settings=active_settings,
     )
     trail = [_constat_entry(1, "sale", sale), _constat_entry(2, "delivery", delivery)]
     if on_step is not None:

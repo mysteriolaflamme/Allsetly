@@ -124,6 +124,28 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Download the certificate (JSON)",
     },
     "del_qr": {"fr": "QR code de partage", "en": "Share QR code"},
+    "sam_title": {
+        "fr": "Segmentation précise (SAM 3.1)",
+        "en": "Precise segmentation (SAM 3.1)",
+    },
+    "sam_concept": {
+        "fr": "Objet à détourer, en anglais (ex. headphones)",
+        "en": "Object to outline (e.g. headphones)",
+    },
+    "sam_button": {"fr": "Segmenter la photo", "en": "Segment the photo"},
+    "sam_running": {"fr": "Segmentation en cours…", "en": "Segmenting…"},
+    "sam_need_concept": {
+        "fr": "Indiquez d'abord l'objet à détourer.",
+        "en": "Enter the object to outline first.",
+    },
+    "sam_none": {
+        "fr": "Aucun « {concept} » trouvé sur la photo.",
+        "en": "No “{concept}” found in the photo.",
+    },
+    "sam_caption": {
+        "fr": "Masques SAM — contours exacts",
+        "en": "SAM masks — exact outlines",
+    },
     "ver_upload": {
         "fr": "Déposer un certificat (JSON)",
         "en": "Drop a certificate (JSON)",

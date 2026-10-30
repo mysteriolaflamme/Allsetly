@@ -109,3 +109,15 @@ def draw_defects(photo: str | Path, defects: list[Defect]) -> Image.Image:
         draw.rectangle([x1, y1, x2, y2], outline=color, width=pen)
         draw.text((x1 + pen, y1 + pen), defect.id, fill=color)
     return image
+
+
+def decode_data_url(data_url: str) -> Image.Image:
+    """Decode a data:image/...;base64,... URL back to a PIL image."""
+    try:
+        header, encoded = data_url.split(",", 1)
+        if not header.startswith("data:image/") or ";base64" not in header:
+            raise ValueError("not an image data URL")
+        with Image.open(io.BytesIO(base64.b64decode(encoded))) as handle:
+            return handle.convert("RGB")
+    except (ValueError, OSError) as error:
+        raise ImageError("Cette image est illisible.") from error

@@ -1,9 +1,10 @@
 [project]
 name = "temoin"
-version = "0.6.0"
+version = "0.7.0"
 description = "Neutral visual witness for remote second-hand trade."
 requires-python = ">=3.11"
 dependencies = [
+    "meta-sam_parser",
     "openai",
     "pillow",
     "pydantic>=2",

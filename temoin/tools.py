@@ -10,6 +10,9 @@ from typing import Any
 
 from PIL import Image, ImageOps
 
+from temoin.config import Settings
+from temoin.images import decode_data_url, prepare_image
+from temoin.meta_api import MetaAPIError, draw_segmentation, segment_image
 from temoin.schemas import Defect, Report
 
 
@@ -36,6 +39,7 @@ class ToolContext:
     delivery_photo: Path
     max_pixels: int
     jpeg_quality: int
+    settings: Settings | None = None
 
 
 @dataclass(frozen=True)
@@ -113,6 +117,27 @@ AGENT_TOOLS: list[dict[str, Any]] = [
                     "instruction": {"type": "string"},
                 },
                 "required": ["zone", "instruction"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "segment",
+            "description": (
+                "Outline one named object in a photo with SAM masks: "
+                "returns boxes and an overlay image with exact contours."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "photo": {"type": "string", "enum": ["sale", "delivery"]},
+                    "concept": {
+                        "type": "string",
+                        "description": "Short noun phrase, e.g. headphones.",
+                    },
+                },
+                "required": ["photo", "concept"],
             },
         },
     },
@@ -271,6 +296,56 @@ def _dispatch_tool(name: str, arguments: dict[str, Any], context: ToolContext) -
                 f"{instruction.strip()} No new photo can arrive during this run: "
                 "conclude with À VÉRIFIER and list this request in missing_proof."
             ),
+        )
+    if name == "segment":
+        photo = _photo_label(arguments.get("photo"))
+        concept = arguments.get("concept")
+        if not isinstance(concept, str) or not concept.strip():
+            raise ToolError("Invalid concept: expected a non-empty string.")
+        if context.settings is None:
+            return ToolResult(
+                name=name,
+                content=(
+                    "Segmentation unavailable (Meta API key not configured). "
+                    "Rely on the constat bboxes."
+                ),
+            )
+        path = context.sale_photo if photo == "sale" else context.delivery_photo
+        prepared = prepare_image(
+            path,
+            max_pixels=context.max_pixels,
+            max_megabytes=context.settings.image_max_megabytes,
+            jpeg_quality=context.jpeg_quality,
+        )
+        try:
+            segmentation = segment_image(
+                prepared.data_url, concept.strip(), settings=context.settings
+            )
+        except MetaAPIError as error:
+            return ToolResult(
+                name=name,
+                content=f"Segmentation unavailable ({error}). Rely on the constat bboxes.",
+            )
+        overlay = draw_segmentation(decode_data_url(prepared.data_url), segmentation)
+        buffer = io.BytesIO()
+        overlay.save(buffer, format="JPEG", quality=context.jpeg_quality)
+        encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+        boxes = (
+            "; ".join(
+                f"{mask.object_id}:[{round(mask.left)},{round(mask.top)},"
+                f"{round(mask.right)},{round(mask.bottom)}]"
+                for mask in segmentation.masks
+            )
+            or "none"
+        )
+        return ToolResult(
+            name=name,
+            content=(
+                f"Segmentation of the {photo} photo for '{concept.strip()}': "
+                f"{len(segmentation.masks)} mask(s). "
+                f"Boxes (sent-image pixels): {boxes}. The overlay image follows."
+            ),
+            image_data_url=f"data:image/jpeg;base64,{encoded}",
         )
     known = ", ".join(tool["function"]["name"] for tool in AGENT_TOOLS)
     return ToolResult(name=name, content=f"Unknown tool: {name}. Available: {known}.")
