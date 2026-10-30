@@ -8,7 +8,17 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from temoin.schemas import Comparison, ComparisonDraft, Defect, DefectMatch, Report, ReportDraft
+from temoin.schemas import (
+    Certificate,
+    Comparison,
+    ComparisonDraft,
+    Defect,
+    DefectMatch,
+    IssuedCode,
+    Report,
+    ReportDraft,
+    Transaction,
+)
 
 
 def _valid_defect() -> dict[str, Any]:
@@ -157,3 +167,29 @@ def test_comparison_from_draft_attaches_metadata(
     assert comparison.freshness_delivery_ok is False
     assert comparison.prompt_version == "7"
     assert comparison.trail == []
+
+
+def test_transaction_defaults_and_certificate_shape(
+    sale_report: Report, delivery_report: Report, comparison: Comparison
+) -> None:
+    """Transaction starts empty; Certificate carries verdict and evidence."""
+    now = datetime.now(UTC)
+    tx = Transaction(
+        id="tx-abc",
+        created_at_utc=now,
+        sale_code=IssuedCode(code="K7", issued_at_utc=now),
+    )
+    assert tx.delivery_code is None
+    assert tx.sale_constat is None
+    assert tx.certificates == []
+    cert = Certificate(
+        certificate_id="c1",
+        comparison=comparison,
+        sale_constat=sale_report,
+        delivery_constat=delivery_report,
+        previous_hash=None,
+        sealed_at_utc=now,
+        content_sha256="0" * 64,
+    )
+    assert cert.comparison.verdict == "CONFORME"
+    assert cert.sale_constat.image_sha256 == sale_report.image_sha256

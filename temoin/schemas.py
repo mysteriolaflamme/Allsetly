@@ -233,3 +233,36 @@ class Comparison(BaseModel):
             disclaimer=disclaimer,
             trail=list(trail),
         )
+
+
+class IssuedCode(BaseModel):
+    """A challenge code issued for one step of a transaction."""
+
+    code: str = Field(description="The issued code, e.g. K7.")
+    issued_at_utc: datetime = Field(description="UTC issue time of the code.")
+
+
+class Certificate(BaseModel):
+    """A sealed comparison: verdict, evidence, chain link and seal."""
+
+    certificate_id: str = Field(description="Certificate identifier.")
+    comparison: Comparison = Field(description="Sealed verdict with its trail.")
+    sale_constat: Report = Field(description="Sealed sale constat.")
+    delivery_constat: Report = Field(description="Sealed delivery constat.")
+    previous_hash: str | None = Field(
+        default=None, description="Seal of the previous certificate, if any."
+    )
+    sealed_at_utc: datetime
+    content_sha256: str = Field(description="SHA-256 seal over the rest.")
+
+
+class Transaction(BaseModel):
+    """One sale case: codes, constats and sealed certificates."""
+
+    id: str = Field(description="Transaction identifier, e.g. tx-1a2b3c4d.")
+    created_at_utc: datetime
+    sale_code: IssuedCode
+    delivery_code: IssuedCode | None = None
+    sale_constat: Report | None = None
+    delivery_constat: Report | None = None
+    certificates: list[Certificate] = Field(default_factory=list)

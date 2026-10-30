@@ -12,7 +12,14 @@ from PIL import Image
 
 from temoin.config import Settings
 from temoin.images import PreparedImage
-from temoin.schemas import ChallengeCheck, Defect, Report
+from temoin.schemas import (
+    ChallengeCheck,
+    Comparison,
+    ComparisonDraft,
+    Defect,
+    Report,
+    TrailEntry,
+)
 
 
 @pytest.fixture
@@ -177,3 +184,24 @@ def comparison_payload() -> dict[str, Any]:
 def comparison_json(comparison_payload: dict[str, Any]) -> str:
     """Return the valid comparison answer as a JSON string."""
     return json.dumps(comparison_payload)
+
+
+@pytest.fixture
+def comparison(
+    comparison_payload: dict[str, Any], sale_report: Report, delivery_report: Report
+) -> Comparison:
+    """Return a finalized comparison with a one-step trail."""
+    draft = ComparisonDraft.model_validate(comparison_payload)
+    return Comparison.from_draft(
+        draft,
+        verdict="CONFORME",
+        capped_reason=None,
+        sale=sale_report,
+        delivery=delivery_report,
+        freshness_sale_ok=True,
+        freshness_delivery_ok=True,
+        created_at_utc=datetime.now(UTC),
+        prompt_version="1",
+        disclaimer="D.",
+        trail=[TrailEntry(step=1, action="verdict", summary="Model verdict: CONFORME.")],
+    )

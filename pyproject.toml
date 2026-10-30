@@ -1,6 +1,6 @@
 [project]
 name = "temoin"
-version = "0.4.0"
+version = "0.5.0"
 description = "Neutral visual witness for remote second-hand trade."
 requires-python = ">=3.11"
 dependencies = [
@@ -8,6 +8,7 @@ dependencies = [
     "pillow",
     "pydantic>=2",
     "python-dotenv",
+    "qrcode",
     "streamlit",
 ]
 

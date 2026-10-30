@@ -33,6 +33,11 @@ class Settings:
     cache_dir: Path = Path(".cache/temoin")
     agent_max_steps: int = 8
     human_review_disclaimer: str = "Témoin assiste une décision humaine, il ne la remplace pas."
+    challenge_alphabet: str = "ABCDEFGHJKLMNPQRTUVWXYZ2346789"
+    challenge_code_length: int = 2
+    challenge_validity_minutes: int = 15
+    challenge_max_issues: int = 100
+    data_dir: Path = Path("data")
 
 
 def _read_streamlit_secrets() -> dict[str, str]:
