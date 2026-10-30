@@ -63,3 +63,29 @@ def test_create_report_missing_photo_is_plain_error(
     with pytest.raises(ImageError, match="introuvable"):
         create_report(tmp_path / "nope.jpg", "K7", settings=test_settings, client=client)
     assert client.calls == []
+
+
+def test_create_report_sends_declared_materials(photo_path: Path, test_settings: Settings) -> None:
+    """Declared materials reach the prompt; grade and materials are stored."""
+    payload = {
+        "description": "Sacoche.",
+        "materials": ["toile"],
+        "defects": [],
+        "challenge": {
+            "expected_code": "K7",
+            "visible": True,
+            "read_code": "K7",
+            "looks_printed_or_edited": False,
+        },
+        "checkpoints": [],
+        "alerts": [{"category": "material_mismatch", "message": "Pas du cuir."}],
+    }
+    client = FakeChatClient([json.dumps(payload)])
+    report = create_report(
+        photo_path, "K7", settings=test_settings, client=client, declared_materials=["cuir"]
+    )
+    assert "DECLARED MATERIALS: cuir" in client.calls[0]["messages"][0]["content"]
+    assert report.materials == ["toile"]
+    assert report.declared_materials == ["cuir"]
+    assert report.condition_grade == "A"
+    assert [alert.category for alert in report.alerts] == ["material_mismatch"]

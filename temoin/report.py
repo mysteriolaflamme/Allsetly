@@ -18,6 +18,7 @@ def create_report(
     *,
     settings: Settings | None = None,
     client: ChatClient | None = None,
+    declared_materials: list[str] | None = None,
 ) -> Report:
     """Analyse a photo and return its validated constat as a Report."""
     active_settings = settings or load_settings()
@@ -28,7 +29,9 @@ def create_report(
         jpeg_quality=active_settings.image_jpeg_quality,
     )
     code = expected_code.strip().upper()
-    messages = build_constat_messages(expected_code=code, image_data_url=prepared.data_url)
+    messages = build_constat_messages(
+        expected_code=code, image_data_url=prepared.data_url, declared_materials=declared_materials
+    )
     active_client = client or default_client(
         api_key=active_settings.baseten_api_key,
         base_url=active_settings.model_base_url,
@@ -51,4 +54,5 @@ def create_report(
         image_sha256=prepared.sha256,
         created_at_utc=datetime.now(UTC),
         prompt_version=PROMPT_VERSION,
+        declared_materials=declared_materials,
     )

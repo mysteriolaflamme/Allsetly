@@ -58,11 +58,31 @@ class Checkpoint(BaseModel):
     instruction: str = Field(description="Plain-language photo instruction for the buyer.")
 
 
+ConditionGrade = Literal["A", "B", "C", "D"]
+
+
+def condition_grade_for(defects: list[Defect]) -> ConditionGrade:
+    """Grade overall condition from flaw counts: A (best) to D (worst)."""
+    major = sum(1 for flaw in defects if flaw.severity == "major")
+    moderate = sum(1 for flaw in defects if flaw.severity == "moderate")
+    minor = sum(1 for flaw in defects if flaw.severity == "minor")
+    if major >= 1:
+        return "D"
+    if moderate >= 2 or (moderate >= 1 and minor >= 2):
+        return "C"
+    if moderate >= 1 or minor >= 2:
+        return "B"
+    return "A"
+
+
 class ReportDraft(BaseModel):
     """Raw structured answer of the model, before metadata is attached."""
 
     description: str = Field(description="Factual description of the item.")
     defects: list[Defect] = Field(default_factory=list)
+    materials: list[str] = Field(
+        default_factory=list, description="Visible materials, most prominent first."
+    )
     challenge: ChallengeCheck
     checkpoints: list[Checkpoint] = Field(
         default_factory=list, description="Up to 3 most distinctive defects."
@@ -86,6 +106,11 @@ class Report(BaseModel):
 
     description: str
     defects: list[Defect] = Field(default_factory=list)
+    materials: list[str] = Field(default_factory=list)
+    declared_materials: list[str] = Field(default_factory=list)
+    condition_grade: str = Field(
+        default="", description="A-D condition grade (empty for legacy records)."
+    )
     challenge: ChallengeCheck
     checkpoints: list[Checkpoint] = Field(default_factory=list)
     alerts: list[Alert] = Field(default_factory=list)
@@ -101,11 +126,16 @@ class Report(BaseModel):
         image_sha256: str,
         created_at_utc: datetime,
         prompt_version: str,
+        declared_materials: list[str] | None = None,
     ) -> Report:
         """Attach metadata to a validated model answer."""
+        cleaned = [item.strip() for item in (declared_materials or []) if item.strip()]
         return cls(
             description=draft.description,
             defects=draft.defects,
+            materials=list(draft.materials),
+            declared_materials=cleaned,
+            condition_grade=condition_grade_for(draft.defects),
             challenge=draft.challenge,
             checkpoints=draft.checkpoints,
             alerts=draft.alerts,

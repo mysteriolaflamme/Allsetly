@@ -18,6 +18,7 @@ from temoin.schemas import (
     Report,
     ReportDraft,
     Transaction,
+    condition_grade_for,
 )
 
 
@@ -193,3 +194,41 @@ def test_transaction_defaults_and_certificate_shape(
     )
     assert cert.comparison.verdict == "CONFORME"
     assert cert.sale_constat.image_sha256 == sale_report.image_sha256
+
+
+def test_condition_grade_boundaries() -> None:
+    """A-D grades follow flaw counts: major→D, 2 moderate→C, 1 moderate→B."""
+
+    def grade(*severities: str) -> str:
+        flaws = [
+            Defect.model_validate({**_valid_defect(), "severity": item}) for item in severities
+        ]
+        return condition_grade_for(flaws)
+
+    assert grade() == "A"
+    assert grade("minor") == "A"
+    assert grade("minor", "minor") == "B"
+    assert grade("moderate") == "B"
+    assert grade("moderate", "minor") == "B"
+    assert grade("moderate", "moderate") == "C"
+    assert grade("moderate", "minor", "minor") == "C"
+    assert grade("major") == "D"
+    assert grade("major", "minor") == "D"
+
+
+def test_report_from_draft_sets_materials_and_grade(draft_payload: dict[str, Any]) -> None:
+    """from_draft stores observed/declared materials and the A-D grade."""
+    draft = ReportDraft.model_validate(draft_payload)
+    now = datetime.now(UTC)
+    report = Report.from_draft(
+        draft,
+        image_sha256="x",
+        created_at_utc=now,
+        prompt_version="2",
+        declared_materials=[" cuir ", ""],
+    )
+    assert report.materials == ["cuir", "métal"]
+    assert report.declared_materials == ["cuir"]
+    assert report.condition_grade == "B"
+    plain = Report.from_draft(draft, image_sha256="x", created_at_utc=now, prompt_version="2")
+    assert plain.declared_materials == []

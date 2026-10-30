@@ -33,6 +33,13 @@ from temoin.video import VideoError, create_video_report, frames_dir_for
 def show_report(report: Report, lang: str, photo: Path | None) -> None:
     """Render a constat: description, freshness, framed flaws, checkpoints."""
     st.write(f"**{t('report_object', lang)}** : {report.description}")
+    if report.materials:
+        st.write(f"**{t('report_materials', lang)}** : {', '.join(report.materials)}")
+    if report.declared_materials:
+        st.write(f"**{t('report_declared', lang)}** : {', '.join(report.declared_materials)}")
+    if report.condition_grade:
+        st.write(f"**{t('report_grade', lang)}** : {report.condition_grade}")
+        st.caption(t("val_basis", lang).format(n=len(report.defects)))
     if is_fresh(report):
         st.success(t("fresh_ok", lang).format(code=report.challenge.read_code or "?"))
     else:
@@ -50,6 +57,11 @@ def show_report(report: Report, lang: str, photo: Path | None) -> None:
             "moderate": t("severity_moderate", lang),
             "major": t("severity_major", lang),
         }
+        impact_names = {
+            "minor": t("impact_low", lang),
+            "moderate": t("impact_medium", lang),
+            "major": t("impact_high", lang),
+        }
         st.table(
             [
                 {
@@ -57,6 +69,7 @@ def show_report(report: Report, lang: str, photo: Path | None) -> None:
                     "Type": defect.type,
                     "Zone": defect.zone,
                     t("col_severity", lang): severity_names.get(defect.severity, defect.severity),
+                    t("col_impact", lang): impact_names.get(defect.severity, defect.severity),
                 }
                 for defect in report.defects
             ]
@@ -176,6 +189,9 @@ def sale_flow(settings: Settings, lang: str) -> None:
         return
     st.subheader(t("sale_code_title", lang))
     st.markdown(f"# `{tx.sale_code.code}`")
+    declared_raw = st.text_input(
+        t("sale_materials", lang), value=st.session_state.get("sale_materials", "")
+    )
     upload = st.file_uploader(t("sale_upload", lang), type=["jpg", "jpeg", "png", "webp"])
     if st.button(t("sale_analyze", lang)):
         if upload is None:
@@ -186,7 +202,14 @@ def sale_flow(settings: Settings, lang: str) -> None:
             photo_path.write_bytes(upload.getvalue())
             with st.spinner(t("sale_analyzing", lang)):
                 try:
-                    report = create_report(photo_path, tx.sale_code.code, settings=settings)
+                    declared = [item.strip() for item in declared_raw.split(",") if item.strip()]
+                    st.session_state.sale_materials = declared_raw
+                    report = create_report(
+                        photo_path,
+                        tx.sale_code.code,
+                        settings=settings,
+                        declared_materials=declared,
+                    )
                 except (ConfigError, ImageError, ModelError) as error:
                     st.error(str(error))
                     return

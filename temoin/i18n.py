@@ -218,6 +218,21 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "vid_fused": {"fr": "Défauts confirmés multi-vues", "en": "Multi-view confirmed flaws"},
     "vid_confirmed": {"fr": "Confirmé sur", "en": "Confirmed on"},
+    "sale_materials": {
+        "fr": "Matières annoncées (séparées par des virgules)",
+        "en": "Declared materials (comma-separated)",
+    },
+    "report_materials": {"fr": "Matières observées", "en": "Observed materials"},
+    "report_declared": {"fr": "Matières annoncées", "en": "Declared materials"},
+    "report_grade": {"fr": "État général", "en": "Overall condition"},
+    "col_impact": {"fr": "Impact valeur", "en": "Value impact"},
+    "impact_low": {"fr": "faible", "en": "low"},
+    "impact_medium": {"fr": "modéré", "en": "medium"},
+    "impact_high": {"fr": "fort", "en": "high"},
+    "val_basis": {
+        "fr": "Note calculée depuis {n} défaut(s) relevé(s).",
+        "en": "Grade computed from {n} recorded flaw(s).",
+    },
 }
 
 VERDICTS: dict[str, dict[str, str]] = {

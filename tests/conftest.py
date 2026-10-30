@@ -19,6 +19,7 @@ from temoin.schemas import (
     Defect,
     Report,
     TrailEntry,
+    condition_grade_for,
 )
 
 
@@ -35,6 +36,7 @@ def draft_payload() -> dict[str, Any]:
     """Return a valid model answer payload."""
     return {
         "description": "Une sacoche en cuir marron avec bandoulière.",
+        "materials": ["cuir", "métal"],
         "defects": [
             {
                 "id": "D1",
@@ -112,12 +114,16 @@ def _make_report(
     defect_ids: list[str],
 ) -> Report:
     """Build a validated Report for comparison tests."""
+    defects = [
+        Defect.model_validate(_defect_dict(id, distinctive=index == 0))
+        for index, id in enumerate(defect_ids)
+    ]
     return Report(
         description=f"Objet de test pour le code {expected_code}.",
-        defects=[
-            Defect.model_validate(_defect_dict(id, distinctive=index == 0))
-            for index, id in enumerate(defect_ids)
-        ],
+        defects=defects,
+        materials=["cuir"],
+        declared_materials=[],
+        condition_grade=condition_grade_for(defects),
         challenge=ChallengeCheck(expected_code=expected_code, visible=visible, read_code=read_code),
         checkpoints=[],
         alerts=[],

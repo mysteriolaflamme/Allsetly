@@ -213,3 +213,13 @@ def test_video_constat_command_prints_fusion(
     assert "Vues analysées : 2" in out
     assert "F1" in out
     assert "2/2 vues" in out
+
+
+def test_parser_constat_materials_are_optional() -> None:
+    """constat accepts an optional declared-materials list."""
+    args = build_parser().parse_args(["constat", "photo.jpg", "--code", "K7"])
+    assert args.materials is None
+    args = build_parser().parse_args(
+        ["constat", "photo.jpg", "--code", "K7", "--materials", "cuir,bois"]
+    )
+    assert args.materials == "cuir,bois"

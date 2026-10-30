@@ -108,3 +108,22 @@ def test_agent_messages_name_tools_and_demand_zoom(
     assert "MUST" in system
     images = [part["image_url"]["url"] for part in messages[1]["content"][1:]]
     assert images == ["data:,sale", "data:,del"]
+
+
+def test_constat_prompt_lists_materials_task() -> None:
+    """The prompt asks for materials and names the mismatch category."""
+    messages = build_constat_messages(expected_code="K7", image_data_url="data:,")
+    system = messages[0]["content"]
+    assert "MATERIALS" in system
+    assert '"materials"' in system
+    assert "material_mismatch" in system
+
+
+def test_constat_messages_show_declared_materials() -> None:
+    """Declared materials appear in the prompt, 'none' by default."""
+    messages = build_constat_messages(
+        expected_code="K7", image_data_url="data:,", declared_materials=[" cuir ", "", "bois"]
+    )
+    assert "DECLARED MATERIALS: cuir, bois" in messages[0]["content"]
+    default = build_constat_messages(expected_code="K7", image_data_url="data:,")
+    assert "DECLARED MATERIALS: none" in default[0]["content"]

@@ -20,6 +20,7 @@ from temoin.schemas import (
     Defect,
     FrameReport,
     Report,
+    condition_grade_for,
 )
 from temoin.video import (
     VideoError,
@@ -73,9 +74,13 @@ def _report(
     checkpoints: list[dict[str, str]] | None = None,
 ) -> Report:
     """Build a validated frame Report."""
+    validated = [Defect.model_validate(item) for item in defects]
     return Report(
         description="Casque beige.",
-        defects=[Defect.model_validate(item) for item in defects],
+        defects=validated,
+        materials=["plastique"],
+        declared_materials=[],
+        condition_grade=condition_grade_for(validated),
         challenge=ChallengeCheck(expected_code="K7", visible=visible, read_code=read),
         checkpoints=[Checkpoint.model_validate(item) for item in (checkpoints or [])],
         alerts=[Alert.model_validate(item) for item in (alerts or [])],
@@ -97,6 +102,7 @@ def _draft_json(
     return json.dumps(
         {
             "description": "Casque beige.",
+            "materials": ["plastique"],
             "defects": defects,
             "challenge": {
                 "expected_code": "K7",
@@ -289,7 +295,7 @@ def test_create_video_report_fuses_frames(tmp_path: Path, test_settings: Setting
     assert [point.defect_id for point in report.checkpoints] == ["F1"]
     assert [alert.category for alert in report.alerts] == ["blurry"]
     assert len(report.video_sha256) == 64
-    assert report.prompt_version == "1"
+    assert report.prompt_version == "2"
     assert calls == [(1, 3), (2, 3), (3, 3)]
     assert sorted(path.name for path in (tmp_path / "frames").iterdir()) == [
         "frame-00.jpg",

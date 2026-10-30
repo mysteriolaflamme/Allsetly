@@ -31,6 +31,7 @@ def build_parser() -> argparse.ArgumentParser:
     constat = sub.add_parser("constat", help="Produce the validated constat of one photo.")
     constat.add_argument("photo", help="Path to the photo, e.g. photo.jpg.")
     constat.add_argument("--code", required=True, help="Challenge code, e.g. K7.")
+    constat.add_argument("--materials", default=None, help="Declared materials, e.g. 'cuir,bois'.")
     compare = sub.add_parser("compare", help="Investigate a sale/delivery pair.")
     compare.add_argument("sale", help="Path to the sale photo, e.g. vente.jpg.")
     compare.add_argument("delivery", help="Path to the delivery photo, e.g. livraison.jpg.")
@@ -171,7 +172,8 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "video-constat":
             return video_main(args.video, args.code, args.max_frames)
         else:
-            result = create_report(args.photo, args.code)
+            declared = [item.strip() for item in (args.materials or "").split(",") if item.strip()]
+            result = create_report(args.photo, args.code, declared_materials=declared)
     except (ConfigError, ImageError, ModelError, MetaAPIError, VideoError) as error:
         sys.stderr.write(f"{error}\n")
         return 1
