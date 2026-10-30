@@ -8,7 +8,9 @@ from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
+
+from temoin.schemas import Defect
 
 SUPPORTED_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif")
 
@@ -84,3 +86,26 @@ def prepare_image(
         width=width,
         height=height,
     )
+
+
+_SEVERITY_COLORS = {"minor": "yellow", "moderate": "orange", "major": "red"}
+
+
+def draw_defects(photo: str | Path, defects: list[Defect]) -> Image.Image:
+    """Draw defect boxes with ids on a copy of the photo."""
+    with Image.open(photo) as handle:
+        image = ImageOps.exif_transpose(handle).convert("RGB")
+    width, height = image.size
+    draw = ImageDraw.Draw(image)
+    pen = max(2, width // 300)
+    for defect in defects:
+        if defect.bbox is None:
+            continue
+        x1, y1, x2, y2 = (
+            round(value * dim / 1000)
+            for value, dim in zip(defect.bbox, (width, height, width, height), strict=True)
+        )
+        color = _SEVERITY_COLORS.get(defect.severity, "red")
+        draw.rectangle([x1, y1, x2, y2], outline=color, width=pen)
+        draw.text((x1 + pen, y1 + pen), defect.id, fill=color)
+    return image

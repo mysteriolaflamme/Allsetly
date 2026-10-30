@@ -11,7 +11,7 @@ from PIL import Image
 from temoin.agent import build_investigation_cache_key, run_investigation
 from temoin.config import Settings
 from temoin.model import ChatAnswer, ToolCall
-from temoin.schemas import Comparison
+from temoin.schemas import Comparison, TrailEntry
 from tests.fake_client import FakeChatClient
 
 
@@ -217,3 +217,31 @@ def test_build_investigation_cache_key_covers_constats() -> None:
     assert base == build_investigation_cache_key(sale_constat="a", delivery_constat="b")
     assert base != build_investigation_cache_key(sale_constat="X", delivery_constat="b")
     assert base != build_investigation_cache_key(sale_constat="a", delivery_constat="X")
+
+
+def test_run_investigation_emits_trail_steps(
+    tmp_path: Path, test_settings: Settings, draft_json: str, comparison_json: str
+) -> None:
+    """on_step receives every trail entry in order."""
+    sale, delivery = _photos(tmp_path)
+    zoom = _call("zoom", {"photo": "sale", "bbox": [100, 100, 500, 500]})
+    client = FakeChatClient(
+        [
+            draft_json,
+            _delivery_draft(draft_json, "Q9"),
+            ChatAnswer(content="", tool_calls=[zoom]),
+            comparison_json,
+        ]
+    )
+    received: list[TrailEntry] = []
+    comparison = run_investigation(
+        sale,
+        delivery,
+        sale_code="K7",
+        delivery_code="Q9",
+        settings=test_settings,
+        client=client,
+        on_step=received.append,
+    )
+    assert [entry.action for entry in received] == [entry.action for entry in comparison.trail]
+    assert received[2].action == "tool:zoom"

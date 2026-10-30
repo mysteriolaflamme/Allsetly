@@ -8,7 +8,8 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from temoin.images import ImageError, compute_sha256, prepare_image
+from temoin.images import ImageError, compute_sha256, draw_defects, prepare_image
+from temoin.schemas import Defect
 
 
 def _make_photo(path: Path, size: tuple[int, int] = (640, 480)) -> Path:
@@ -76,3 +77,37 @@ def test_heic_without_plugin_suggests_conversion(tmp_path: Path) -> None:
     photo.write_bytes(b"fake-heic-bytes")
     with pytest.raises(ImageError, match="HEIC"):
         prepare_image(photo, max_pixels=1024, max_megabytes=15.0, jpeg_quality=90)
+
+
+def test_draw_defects_frames_only_boxes(tmp_path: Path) -> None:
+    """Boxes are drawn for defects with bboxes; the file is untouched."""
+    photo = tmp_path / "photo.jpg"
+    Image.new("RGB", (200, 100), color=(255, 255, 255)).save(photo, format="JPEG")
+    before = photo.read_bytes()
+    boxed = Defect.model_validate(
+        {
+            "id": "D1",
+            "type": "rayure",
+            "description": "x",
+            "zone": "y",
+            "severity": "major",
+            "bbox": [0, 0, 1000, 1000],
+            "distinctive": True,
+        }
+    )
+    plain = Defect.model_validate(
+        {
+            "id": "D2",
+            "type": "tache",
+            "description": "x",
+            "zone": "y",
+            "severity": "minor",
+            "bbox": None,
+            "distinctive": False,
+        }
+    )
+    framed = draw_defects(photo, [boxed, plain])
+    assert framed.size == (200, 100)
+    assert framed.mode == "RGB"
+    assert photo.read_bytes() == before
+    assert framed.getpixel((0, 0)) != (255, 255, 255)

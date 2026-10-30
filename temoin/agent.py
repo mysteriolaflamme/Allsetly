@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
@@ -78,6 +79,7 @@ def _execute_logged(
     context: ToolContext,
     messages: list[dict[str, Any]],
     trail: list[TrailEntry],
+    on_step: Callable[[TrailEntry], None] | None,
 ) -> ToolResult:
     """Execute one tool call, log it in the trail and append its result."""
     try:
@@ -108,6 +110,8 @@ def _execute_logged(
             summary=_shorten(f"{call.name} {call.arguments} -> {result.content}"),
         )
     )
+    if on_step is not None:
+        on_step(trail[-1])
     return result
 
 
@@ -160,6 +164,7 @@ def run_investigation(
     delivery_code: str | None = None,
     settings: Settings | None = None,
     client: ChatClient | None = None,
+    on_step: Callable[[TrailEntry], None] | None = None,
 ) -> Comparison:
     """Investigate a sale/delivery pair with tools and return the verdict."""
     active_settings = settings or load_settings()
@@ -204,6 +209,9 @@ def run_investigation(
         jpeg_quality=active_settings.image_jpeg_quality,
     )
     trail = [_constat_entry(1, "sale", sale), _constat_entry(2, "delivery", delivery)]
+    if on_step is not None:
+        on_step(trail[0])
+        on_step(trail[1])
     must_conclude = False
     photo_requested = False
     zoom_used = False
@@ -221,7 +229,7 @@ def run_investigation(
         if answer.tool_calls and not must_conclude:
             messages.append(_assistant_tool_message(answer))
             for call in answer.tool_calls:
-                _execute_logged(call, context, messages, trail)
+                _execute_logged(call, context, messages, trail, on_step)
                 if call.name == "zoom":
                     zoom_used = True
                 if call.name == "request_photo":
@@ -255,6 +263,8 @@ def run_investigation(
                 summary="Agent did not conclude; single-shot verdict.",
             )
         )
+        if on_step is not None:
+            on_step(trail[-1])
         comparison = compare_reports(
             sale,
             delivery,
@@ -263,6 +273,7 @@ def run_investigation(
             settings=active_settings,
             client=active_client,
             trail=trail,
+            on_step=on_step,
         )
     else:
         comparison = finalize_comparison(
@@ -272,6 +283,7 @@ def run_investigation(
             trail=trail,
             prompt_version=AGENT_PROMPT_VERSION,
             disclaimer=active_settings.human_review_disclaimer,
+            on_step=on_step,
         )
     _write_investigation_cache(active_settings, sale, delivery, comparison)
     return comparison

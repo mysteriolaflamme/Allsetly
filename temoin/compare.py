@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 from temoin.config import Settings, load_settings
@@ -70,6 +71,7 @@ def finalize_comparison(
     trail: list[TrailEntry],
     prompt_version: str,
     disclaimer: str,
+    on_step: Callable[[TrailEntry], None] | None = None,
 ) -> Comparison:
     """Apply guardrails and metadata to a validated draft, extending the trail."""
     verdict, capped_reason = apply_verdict_guardrails(draft, sale=sale, delivery=delivery)
@@ -89,6 +91,9 @@ def finalize_comparison(
                 summary=f"Capped to {verdict}: {capped_reason}.",
             )
         )
+    if on_step is not None:
+        for entry in entries[len(trail) :]:
+            on_step(entry)
     return Comparison.from_draft(
         draft,
         verdict=verdict,
@@ -113,6 +118,7 @@ def compare_reports(
     settings: Settings | None = None,
     client: ChatClient | None = None,
     trail: list[TrailEntry] | None = None,
+    on_step: Callable[[TrailEntry], None] | None = None,
 ) -> Comparison:
     """Compare two validated constats in one structured call, then finalize."""
     active_settings = settings or load_settings()
@@ -154,4 +160,5 @@ def compare_reports(
         trail=list(trail) if trail else [],
         prompt_version=COMPARE_PROMPT_VERSION,
         disclaimer=active_settings.human_review_disclaimer,
+        on_step=on_step,
     )
