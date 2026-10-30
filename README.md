@@ -24,6 +24,11 @@ added here (deploy guide below).
 - **Sealed certificate** — SHA-256 chain + QR + WhatsApp share link.
 - **Precise segmentation** — SAM 3.1 masks overlaid on the photo.
 - **Voice declaration** — transcribed with Muse Voice Transcribe.
+- **Video constat** — walkaround video fused into multi-view confirmed flaws.
+- **Materials + condition grade** — observed vs declared, A/B/C/D note.
+- **Forensics** — retouch signals plus photo quality coaching.
+- **Depth Matrix** — CPU-only relief from two views (no GPU), parallax GIF
+  and interactive 3D cloud; unmeasured zones stay empty, never invented.
 - **FR/EN interface**, phone-friendly flows (Sale / Delivery / Verify).
 
 ## Evaluation
@@ -70,12 +75,15 @@ CLI:
 .venv\Scripts\python -m temoin compare sale.jpg delivery.jpg --sale-code K7 --delivery-code A8
 .venv\Scripts\python -m temoin segment photo.jpg --concept headphones
 .venv\Scripts\python -m temoin transcribe note.wav --language-bias french
+.venv\Scripts\python -m temoin video-constat tour.mp4 --code K7
+.venv\Scripts\python -m temoin forensics photo.jpg
+.venv\Scripts\python -m temoin stereo left.jpg right.jpg --bbox 400,400,600,600
 .venv\Scripts\python -m temoin verify cert-1.json
 .venv\Scripts\python -m eval.run_eval
 ```
 
 Tests and lint from the project root: `python -m pytest`, `ruff check .`,
-`ruff format .` (170 tests, offline with a fake client).
+`ruff format .` (210 tests, offline with a fake client).
 
 ## Deploy your own (Streamlit Community Cloud)
 

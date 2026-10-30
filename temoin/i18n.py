@@ -245,6 +245,32 @@ STRINGS: dict[str, dict[str, str]] = {
     "voice_empty": {"fr": "Aucune parole détectée.", "en": "No speech detected."},
     "for_title": {"fr": "Vérifications photo", "en": "Photo checks"},
     "for_ok": {"fr": "Photo saine, bonne qualité.", "en": "Photo clean, good quality."},
+    "tab_depth": {"fr": "Profondeur", "en": "Depth"},
+    "depth_hint": {
+        "fr": "Déposez deux photos du même objet sous deux angles proches (un pas à droite).",
+        "en": "Drop two photos of the same item from two close angles (one step right).",
+    },
+    "depth_left": {"fr": "Vue de gauche", "en": "Left view"},
+    "depth_right": {"fr": "Vue de droite", "en": "Right view"},
+    "depth_button": {"fr": "Mesurer le relief", "en": "Measure the relief"},
+    "depth_running": {"fr": "Mesure du relief en cours…", "en": "Measuring relief…"},
+    "depth_need": {
+        "fr": "Déposez les deux vues pour mesurer le relief.",
+        "en": "Drop both views to measure the relief.",
+    },
+    "depth_coverage": {
+        "fr": "Relief mesuré sur {pct} % de l'image.",
+        "en": "Relief measured on {pct}% of the image.",
+    },
+    "depth_wiggle": {"fr": "Relief animé (parallaxe)", "en": "Animated relief (parallax)"},
+    "depth_cloud": {
+        "fr": "Nuage 3D — tournez l'objet avec la souris",
+        "en": "3D cloud — rotate the item with the mouse",
+    },
+    "depth_unknown": {
+        "fr": "Zones sans relief mesuré : laissées vides, jamais inventées.",
+        "en": "Unmeasured zones: left empty, never invented.",
+    },
 }
 
 VERDICTS: dict[str, dict[str, str]] = {

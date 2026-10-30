@@ -22,6 +22,14 @@ from temoin.meta_api import (
 from temoin.model import ModelError
 from temoin.report import create_report
 from temoin.seal import CertificateError, load_certificate, verify_certificate
+from temoin.stereo import (
+    StereoError,
+    compute_depth,
+    defect_relief,
+    load_pair,
+    relief_cloud,
+    relief_wiggle,
+)
 from temoin.video import VideoError, create_video_report
 
 logger = logging.getLogger("temoin")
@@ -59,6 +67,12 @@ def build_parser() -> argparse.ArgumentParser:
     forensics = sub.add_parser("forensics", help="Check a photo for retouching and quality.")
     forensics.add_argument("photo", help="Path to the photo, e.g. photo.jpg.")
     forensics.add_argument("--ela-map", default=None, help="Save the ELA map image here.")
+    stereo = sub.add_parser("stereo", help="Measure relief from two views (Depth Matrix).")
+    stereo.add_argument("left", help="Path to the left view, e.g. frame-00.jpg.")
+    stereo.add_argument("right", help="Path to the right view, e.g. frame-01.jpg.")
+    stereo.add_argument("--wiggle", default=None, help="Save the parallax GIF here.")
+    stereo.add_argument("--cloud", default=None, help="Save the 3D cloud HTML here.")
+    stereo.add_argument("--bbox", default=None, help="Defect box 0-1000, e.g. 400,400,600,600.")
     return parser
 
 
@@ -183,6 +197,39 @@ def forensics_main(photo: str, ela_map_path: str | None) -> int:
     return 0
 
 
+def stereo_main(
+    left: str, right: str, wiggle: str | None, cloud: str | None, bbox: str | None
+) -> int:
+    """Measure relief from two views and save the parallax viewers."""
+    settings = load_settings()
+    first, second = load_pair(left, right)
+    matrix = compute_depth(first, second, settings=settings)
+    lines = [
+        f"Vues : {left} / {right}",
+        f"Relief mesuré sur {matrix.coverage * 100:.0f} % de l'image.",
+    ]
+    if bbox:
+        try:
+            box = [int(item) for item in bbox.split(",")]
+            if len(box) != 4:
+                raise ValueError(box)
+        except ValueError:
+            raise StereoError("Cadre invalide : utilisez x1,y1,x2,y2 entre 0 et 1000.") from None
+        stats = defect_relief(matrix, box)
+        lines.append(
+            f"Zone : relief {stats.inside:.2f}, "
+            f"alentours {stats.ring:.2f} (écart {stats.delta:+.2f})."
+        )
+    wiggle_path = Path(wiggle) if wiggle else Path(left).parent / (Path(left).stem + "-relief.gif")
+    wiggle_path.write_bytes(relief_wiggle(first, matrix))
+    lines.append(f"Animation : {wiggle_path}")
+    if cloud:
+        relief_cloud(first, matrix).write_html(cloud, include_plotlyjs="cdn")
+        lines.append(f"Nuage 3D : {cloud}")
+    sys.stdout.write("\n".join(lines) + "\n")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI and return the exit code."""
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
@@ -205,10 +252,19 @@ def main(argv: list[str] | None = None) -> int:
             return video_main(args.video, args.code, args.max_frames)
         elif args.command == "forensics":
             return forensics_main(args.photo, args.ela_map)
+        elif args.command == "stereo":
+            return stereo_main(args.left, args.right, args.wiggle, args.cloud, args.bbox)
         else:
             declared = [item.strip() for item in (args.materials or "").split(",") if item.strip()]
             result = create_report(args.photo, args.code, declared_materials=declared)
-    except (ConfigError, ImageError, ModelError, MetaAPIError, VideoError) as error:
+    except (
+        ConfigError,
+        ImageError,
+        ModelError,
+        MetaAPIError,
+        StereoError,
+        VideoError,
+    ) as error:
         sys.stderr.write(f"{error}\n")
         return 1
     sys.stdout.write(result.model_dump_json(indent=2, ensure_ascii=False) + "\n")

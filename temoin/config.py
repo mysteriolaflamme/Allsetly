@@ -45,6 +45,12 @@ class Settings:
     forensics_ela_quality: int = 90
     forensics_noise_ratio: float = 0.12
     forensics_blur_min: float = 8.0
+    stereo_min_matches: int = 30
+    stereo_orb_features: int = 2000
+    stereo_num_disparities: int = 64
+    stereo_block_size: int = 7
+    stereo_uniqueness: int = 10
+    stereo_max_width: int = 240
 
 
 def _read_streamlit_secrets() -> dict[str, str]:

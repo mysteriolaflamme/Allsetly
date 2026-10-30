@@ -269,3 +269,22 @@ def test_forensics_command_prints_signals(
     assert main(["forensics", str(photo_path), "--ela-map", str(ela_path)]) == 0
     assert ela_path.is_file()
     assert "Carte ELA" in capsys.readouterr().out
+
+
+def test_parser_stereo_arguments() -> None:
+    """stereo with two views, viewers and a box parses correctly."""
+    args = build_parser().parse_args(
+        [
+            "stereo",
+            "left.jpg",
+            "right.jpg",
+            "--wiggle",
+            "relief.gif",
+            "--cloud",
+            "cloud.html",
+            "--bbox",
+            "400,400,600,600",
+        ]
+    )
+    assert (args.command, args.left, args.right) == ("stereo", "left.jpg", "right.jpg")
+    assert (args.wiggle, args.cloud, args.bbox) == ("relief.gif", "cloud.html", "400,400,600,600")

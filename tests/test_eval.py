@@ -215,7 +215,5 @@ def test_main_runs_pairs_and_caches_results(
     assert main([*argv, "--refresh"], investigate=fake_investigate) == 0
     assert len(calls) == 2
     assert main(["--labels", str(tmp_path / "nope.csv")]) == 1
-    monkeypatch.setattr(
-        sys, "argv", ["run_eval", *argv, "--labels", str(tmp_path / "nope.csv")]
-    )
+    monkeypatch.setattr(sys, "argv", ["run_eval", *argv, "--labels", str(tmp_path / "nope.csv")])
     assert main(None, investigate=fake_investigate) == 1

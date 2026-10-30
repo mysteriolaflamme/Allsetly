@@ -103,7 +103,8 @@ Temoin/
 │   ├── storage.py            ← transactions en JSON dans data/ (ignoré par git)
 │   ├── i18n.py               ← textes FR/EN
 │   ├── video.py              ← constats multi-vues depuis une vidéo + fusion
-│   └── forensics.py          ← retouches, qualité photo, coaching
+│   ├── forensics.py          ← retouches, qualité photo, coaching
+│   └── stereo.py             ← relief CPU depuis 2 vues + viewers (GIF, nuage 3D)
 ├── app.py                    ← interface Streamlit (Vente / Livraison / Vérifier)
 ├── tests/                    ← pytest, avec un faux client modèle (aucun appel réseau)
 └── eval/
@@ -158,6 +159,7 @@ Chaque étape se termine par : tests verts, ruff propre, démonstration lancée,
 | 10 | **Témoin Vidéo** : `video.py` (extraction frames, constats multi-vues, fusion), CLI `video-constat`, onglet Vidéo | Constat vidéo fusionné sur une vraie vidéo, défauts confirmés sur ≥2 vues |
 | 11 | **Matières + état** : matières annoncées/observées, note A/B/C/D, facteurs de valeur | Contrefaçon matière détectée en démo, note affichée |
 | 12 | **Forensics** : retouches (ELA/bruit/EXIF), qualité photo + coaching | Photo retouchée signalée, photo floue coachée |
+| 13 | **Depth Matrix** : relief CPU sans GPU depuis 2 vues (ORB + matrice essentielle + SGBM), `stereo.py`, GIF parallaxe + nuage 3D, CLI `stereo`, onglet Profondeur | Relief mesuré sur vraies vues, zones inconnues à −1, jamais inventées |
 
 **Commit git à la fin de chaque étape**, avec un message clair (`step 4: investigator agent + comparison`).
 

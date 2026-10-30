@@ -18,6 +18,7 @@ from temoin.model import ModelError
 from temoin.report import create_report
 from temoin.schemas import Certificate, Comparison, Report, TrailEntry, VideoReport
 from temoin.seal import verify_certificate, verify_chain
+from temoin.stereo import StereoError, compute_depth, load_pair, relief_cloud, relief_wiggle
 from temoin.storage import (
     StorageError,
     attach_constat,
@@ -481,6 +482,37 @@ def video_flow(settings: Settings, lang: str) -> None:
     show_video_report(VideoReport.model_validate_json(saved), lang, settings)
 
 
+def depth_flow(settings: Settings, lang: str) -> None:
+    """Run the Depth Matrix flow: two views, animated relief, 3D cloud."""
+    st.info(t("depth_hint", lang))
+    left_upload = st.file_uploader(t("depth_left", lang), type=["jpg", "jpeg", "png", "webp"])
+    right_upload = st.file_uploader(t("depth_right", lang), type=["jpg", "jpeg", "png", "webp"])
+    if not st.button(t("depth_button", lang)):
+        return
+    if left_upload is None or right_upload is None:
+        st.warning(t("depth_need", lang))
+        return
+    depth_dir = settings.data_dir / "depth"
+    depth_dir.mkdir(parents=True, exist_ok=True)
+    left_path = depth_dir / "left.jpg"
+    right_path = depth_dir / "right.jpg"
+    left_path.write_bytes(left_upload.getvalue())
+    right_path.write_bytes(right_upload.getvalue())
+    with st.spinner(t("depth_running", lang)):
+        try:
+            left, right = load_pair(left_path, right_path)
+            matrix = compute_depth(left, right, settings=settings)
+        except (StereoError, ConfigError) as error:
+            st.error(str(error))
+            return
+    st.success(t("depth_coverage", lang).format(pct=round(matrix.coverage * 100)))
+    st.subheader(t("depth_wiggle", lang))
+    st.image(relief_wiggle(left, matrix))
+    st.subheader(t("depth_cloud", lang))
+    st.plotly_chart(relief_cloud(left, matrix), use_container_width=True)
+    st.caption(t("depth_unknown", lang))
+
+
 st.set_page_config(page_title="Témoin", layout="centered")
 
 choice = st.sidebar.radio("Langue / Language", ["Français", "English"])
@@ -496,8 +528,14 @@ except ConfigError as error:
     st.error(str(error))
     st.stop()
 
-sale_tab, delivery_tab, verify_tab, video_tab = st.tabs(
-    [t("tab_sale", lang), t("tab_delivery", lang), t("tab_verify", lang), t("tab_video", lang)]
+sale_tab, delivery_tab, verify_tab, video_tab, depth_tab = st.tabs(
+    [
+        t("tab_sale", lang),
+        t("tab_delivery", lang),
+        t("tab_verify", lang),
+        t("tab_video", lang),
+        t("tab_depth", lang),
+    ]
 )
 with sale_tab:
     sale_flow(settings, lang)
@@ -507,3 +545,5 @@ with verify_tab:
     verify_flow(settings, lang)
 with video_tab:
     video_flow(settings, lang)
+with depth_tab:
+    depth_flow(settings, lang)
