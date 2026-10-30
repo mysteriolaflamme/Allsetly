@@ -9,21 +9,41 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from hashlib import sha256
 from pathlib import Path
 from typing import Any, Protocol, TypeVar
 
 from pydantic import BaseModel
 
-from temoin.prompts import PROMPT_VERSION, build_json_retry_message
+from temoin.prompts import COMPARE_PROMPT_VERSION, PROMPT_VERSION, build_json_retry_message
 
 logger = logging.getLogger(__name__)
 
 ResponseT = TypeVar("ResponseT", bound=BaseModel)
+_T = TypeVar("_T")
 
 
 class ModelError(Exception):
     """Raised when the model cannot produce a usable answer."""
+
+
+@dataclass(frozen=True)
+class ToolCall:
+    """One function call requested by the model."""
+
+    id: str
+    name: str
+    arguments: str
+
+
+@dataclass(frozen=True)
+class ChatAnswer:
+    """A chat answer: final text plus optional tool calls."""
+
+    content: str
+    tool_calls: list[ToolCall] = field(default_factory=list)
 
 
 class ChatClient(Protocol):
@@ -31,6 +51,15 @@ class ChatClient(Protocol):
 
     def chat(self, model: str, messages: list[dict[str, Any]]) -> str:
         """Send messages and return the final text answer."""
+        ...
+
+    def chat_with_tools(
+        self,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+    ) -> ChatAnswer:
+        """Send messages and return the text answer plus tool calls."""
         ...
 
 
@@ -56,6 +85,27 @@ class OpenAIChatClient:
             raise ModelError("Le modèle n'a rien répondu. Réessayez dans un moment.")
         return content
 
+    def chat_with_tools(
+        self,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+    ) -> ChatAnswer:
+        """Call chat completions and return text plus requested tool calls."""
+        from openai import OpenAI
+
+        client = OpenAI(api_key=self._api_key, base_url=self._base_url)
+        extra: dict[str, Any] = {"tools": tools} if tools is not None else {}
+        response = client.chat.completions.create(
+            model=model, messages=messages, timeout=self._timeout_seconds, **extra
+        )
+        message = response.choices[0].message
+        calls = [
+            ToolCall(id=call.id, name=call.function.name, arguments=call.function.arguments)
+            for call in (message.tool_calls or [])
+        ]
+        return ChatAnswer(content=message.content or "", tool_calls=calls)
+
 
 def default_client(*, api_key: str, base_url: str, timeout_seconds: float) -> ChatClient:
     """Build the real model-backed chat client."""
@@ -66,6 +116,30 @@ def build_cache_key(*, image_sha256: str, expected_code: str) -> str:
     """Derive a disk-cache key from the image, the prompt version and the code."""
     raw = f"{image_sha256}|{PROMPT_VERSION}|{expected_code}".encode()
     return sha256(raw).hexdigest()
+
+
+def build_compare_cache_key(*, sale_constat: str, delivery_constat: str) -> str:
+    """Derive a disk-cache key from both constats and the compare prompt version."""
+    raw = f"{sale_constat}|{delivery_constat}|{COMPARE_PROMPT_VERSION}".encode()
+    return sha256(raw).hexdigest()
+
+
+def read_cache_json(cache_dir: Path, key: str) -> dict[str, Any] | None:
+    """Return a raw cache payload, or None on any miss or corruption."""
+    try:
+        payload = json.loads((cache_dir / f"{key}.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def write_cache_json(cache_dir: Path, key: str, payload: dict[str, Any]) -> None:
+    """Store a cache payload; a cache failure never breaks the run."""
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        (cache_dir / f"{key}.json").write_text(json.dumps(payload), encoding="utf-8")
+    except OSError as error:
+        logger.warning("Could not write model cache: %s", error)
 
 
 def _read_cache(cache_file: Path) -> str | None:
@@ -90,7 +164,7 @@ def _write_cache(cache_file: Path, content: str) -> None:
         logger.warning("Could not write model cache: %s", error)
 
 
-def _validate_content(content: str, response_model: type[ResponseT]) -> ResponseT:
+def validate_content(content: str, response_model: type[ResponseT]) -> ResponseT:
     """Extract the first {...} block and validate it against the model."""
     start, end = content.find("{"), content.rfind("}") + 1
     if start < 0 or end <= start:
@@ -98,19 +172,17 @@ def _validate_content(content: str, response_model: type[ResponseT]) -> Response
     return response_model.model_validate_json(content[start:end])
 
 
-def _call_with_retries(
-    client: ChatClient,
-    model_name: str,
-    messages: list[dict[str, Any]],
+def call_with_retries(
+    call: Callable[[], _T],
     *,
     max_attempts: int,
     retry_wait_seconds: float,
-) -> str:
-    """Call the model, retrying transport failures with progressive waits."""
+) -> _T:
+    """Run a model call, retrying transport failures with progressive waits."""
     last_error: Exception | None = None
     for attempt in range(max(1, max_attempts)):
         try:
-            return client.chat(model_name, messages)
+            return call()
         except Exception as error:
             last_error = error
             logger.warning("Model call failed (attempt %d): %s", attempt + 1, error)
@@ -132,30 +204,32 @@ def complete_json(
     max_attempts: int,
     retry_wait_seconds: float,
     json_retries: int,
+    extra_check: Callable[[ResponseT], None] | None = None,
 ) -> ResponseT:
     """Query the model and return a validated response, using cache if possible.
 
     On invalid JSON, the error is sent back to the model for a new attempt.
+    An optional extra_check runs after validation and feeds the same retry.
     """
     cache_file = cache_dir / f"{cache_key}.json"
     cached = _read_cache(cache_file)
     if cached is not None:
         try:
-            return _validate_content(cached, response_model)
+            return validate_content(cached, response_model)
         except ValueError:
             logger.warning("Ignoring invalid cache entry: %s", cache_file)
     current_messages = list(messages)
     last_error = "unknown error"
     for _ in range(max(0, json_retries) + 1):
-        raw = _call_with_retries(
-            client,
-            model_name,
-            current_messages,
+        raw = call_with_retries(
+            lambda messages=current_messages: client.chat(model_name, messages),
             max_attempts=max_attempts,
             retry_wait_seconds=retry_wait_seconds,
         )
         try:
-            validated = _validate_content(raw, response_model)
+            validated = validate_content(raw, response_model)
+            if extra_check is not None:
+                extra_check(validated)
         except ValueError as error:
             last_error = str(error)
             current_messages = [

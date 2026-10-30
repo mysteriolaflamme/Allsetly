@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
-from temoin.model import ModelError, build_cache_key, complete_json
+from temoin.model import (
+    ModelError,
+    build_cache_key,
+    build_compare_cache_key,
+    complete_json,
+    read_cache_json,
+    write_cache_json,
+)
 from temoin.schemas import ReportDraft
 from tests.fake_client import FakeChatClient
 
@@ -17,6 +25,7 @@ def _complete(
     *,
     cache_key: str = "key-1",
     json_retries: int = 1,
+    extra_check: Callable[[ReportDraft], None] | None = None,
 ) -> ReportDraft:
     """Run complete_json against a fake client with test-friendly waits."""
     return complete_json(
@@ -29,6 +38,7 @@ def _complete(
         max_attempts=2,
         retry_wait_seconds=0.0,
         json_retries=json_retries,
+        extra_check=extra_check,
     )
 
 
@@ -106,3 +116,37 @@ def test_cache_key_changes_with_inputs() -> None:
     assert base == build_cache_key(image_sha256="aaa", expected_code="K7")
     assert base != build_cache_key(image_sha256="bbb", expected_code="K7")
     assert base != build_cache_key(image_sha256="aaa", expected_code="X9")
+
+
+def test_complete_json_applies_extra_check(tmp_path: Path, draft_json: str) -> None:
+    """extra_check failures are sent back like invalid JSON."""
+    seen: list[str] = []
+
+    def _check(draft: ReportDraft) -> None:
+        """Fail the first answer, accept the second one."""
+        seen.append(draft.description)
+        if len(seen) == 1:
+            raise ValueError("cross-check failed")
+
+    client = FakeChatClient([draft_json, draft_json])
+    out = _complete(tmp_path, client, cache_key="extra-1", extra_check=_check)
+    assert isinstance(out, ReportDraft)
+    assert len(client.calls) == 2
+    assert len(seen) == 2
+
+
+def test_build_compare_cache_key_covers_both_constats() -> None:
+    """Both constats shape the comparison cache key."""
+    base = build_compare_cache_key(sale_constat="a", delivery_constat="b")
+    assert base == build_compare_cache_key(sale_constat="a", delivery_constat="b")
+    assert base != build_compare_cache_key(sale_constat="X", delivery_constat="b")
+    assert base != build_compare_cache_key(sale_constat="a", delivery_constat="X")
+
+
+def test_cache_json_roundtrip(tmp_path: Path) -> None:
+    """Raw cache payloads round-trip; misses and corruption give None."""
+    write_cache_json(tmp_path, "k", {"a": 1})
+    assert read_cache_json(tmp_path, "k") == {"a": 1}
+    assert read_cache_json(tmp_path, "missing") is None
+    (tmp_path / "bad.json").write_text("not json", encoding="utf-8")
+    assert read_cache_json(tmp_path, "bad") is None

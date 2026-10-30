@@ -31,6 +31,8 @@ class Settings:
     image_max_megabytes: float = 15.0
     image_jpeg_quality: int = 90
     cache_dir: Path = Path(".cache/temoin")
+    agent_max_steps: int = 8
+    human_review_disclaimer: str = "Témoin assiste une décision humaine, il ne la remplace pas."
 
 
 def _read_streamlit_secrets() -> dict[str, str]:

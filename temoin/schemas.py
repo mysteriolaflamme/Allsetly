@@ -113,3 +113,123 @@ class Report(BaseModel):
             created_at_utc=created_at_utc,
             prompt_version=prompt_version,
         )
+
+    def identity_json(self) -> str:
+        """Serialize without volatile metadata, for stable cache keys."""
+        return self.model_dump_json(exclude={"created_at_utc"})
+
+
+Verdict = Literal["CONFORME", "ENDOMMAGÉ", "À VÉRIFIER", "NON CONFORME"]
+MatchStatus = Literal["matched", "missing", "new", "changed"]
+
+
+class DefectMatch(BaseModel):
+    """How one flaw lines up between the sale photo and the delivery photo."""
+
+    sale_defect_id: str | None = Field(default=None, description="Sale defect id, if any.")
+    delivery_defect_id: str | None = Field(default=None, description="Delivery defect id, if any.")
+    status: MatchStatus
+    note: str = Field(description="Short explanation of this correspondence.")
+
+    @model_validator(mode="after")
+    def _check_ids(self) -> DefectMatch:
+        """Ensure the status matches the provided identifiers."""
+        sale, delivery = self.sale_defect_id, self.delivery_defect_id
+        if self.status in ("matched", "changed") and not (sale and delivery):
+            raise ValueError(f"Status '{self.status}' needs both defect ids.")
+        if self.status == "missing" and not (sale and not delivery):
+            raise ValueError("Status 'missing' needs only a sale defect id.")
+        if self.status == "new" and not (delivery and not sale):
+            raise ValueError("Status 'new' needs only a delivery defect id.")
+        return self
+
+
+class ComparisonDraft(BaseModel):
+    """Raw structured comparison answer, before the deterministic guardrails."""
+
+    verdict: Verdict
+    confidence: Annotated[int, Field(ge=0, le=100, description="Confidence score 0-100.")]
+    same_object: bool = Field(description="True when both photos show the same item.")
+    new_damage: bool = Field(description="True when new damage appeared at delivery.")
+    justification: str = Field(description="Short justification of the verdict.")
+    matches: list[DefectMatch] = Field(default_factory=list)
+    contradictions: list[str] = Field(
+        default_factory=list, description="Clear elements proving different objects."
+    )
+    missing_proof: list[str] = Field(
+        default_factory=list, description="Extra photos needed to decide."
+    )
+    alerts: list[Alert] = Field(default_factory=list)
+
+
+class TrailEntry(BaseModel):
+    """One logged step of the investigation trail."""
+
+    step: int = Field(description="1-based step number in the investigation.")
+    action: str = Field(description="Short action name, e.g. tool:zoom or verdict.")
+    summary: str = Field(description="One-line human-readable summary of the step.")
+
+
+class Comparison(BaseModel):
+    """Validated comparison of a sale photo and a delivery photo."""
+
+    verdict: Verdict
+    model_verdict: Verdict = Field(description="Raw model verdict before guardrails.")
+    capped_reason: str | None = Field(
+        default=None, description="Guardrail reason when the verdict was capped."
+    )
+    confidence: Annotated[int, Field(ge=0, le=100)]
+    same_object: bool
+    new_damage: bool
+    justification: str
+    matches: list[DefectMatch] = Field(default_factory=list)
+    contradictions: list[str] = Field(default_factory=list)
+    missing_proof: list[str] = Field(default_factory=list)
+    alerts: list[Alert] = Field(default_factory=list)
+    freshness_sale_ok: bool
+    freshness_delivery_ok: bool
+    sale_image_sha256: str
+    delivery_image_sha256: str
+    created_at_utc: datetime
+    prompt_version: str
+    disclaimer: str
+    trail: list[TrailEntry] = Field(default_factory=list)
+
+    @classmethod
+    def from_draft(
+        cls,
+        draft: ComparisonDraft,
+        *,
+        verdict: Verdict,
+        capped_reason: str | None,
+        sale: Report,
+        delivery: Report,
+        freshness_sale_ok: bool,
+        freshness_delivery_ok: bool,
+        created_at_utc: datetime,
+        prompt_version: str,
+        disclaimer: str,
+        trail: list[TrailEntry],
+    ) -> Comparison:
+        """Attach guardrail outcome and metadata to a validated model answer."""
+        return cls(
+            verdict=verdict,
+            model_verdict=draft.verdict,
+            capped_reason=capped_reason,
+            confidence=draft.confidence,
+            same_object=draft.same_object,
+            new_damage=draft.new_damage,
+            justification=draft.justification,
+            matches=draft.matches,
+            contradictions=draft.contradictions,
+            missing_proof=draft.missing_proof,
+            alerts=draft.alerts,
+            freshness_sale_ok=freshness_sale_ok,
+            freshness_delivery_ok=freshness_delivery_ok,
+            sale_image_sha256=sale.image_sha256,
+            delivery_image_sha256=delivery.image_sha256,
+            created_at_utc=created_at_utc,
+            prompt_version=prompt_version,
+            disclaimer=disclaimer,
+            trail=list(trail),
+        )

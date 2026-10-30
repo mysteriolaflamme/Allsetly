@@ -2,7 +2,16 @@
 
 from __future__ import annotations
 
-from temoin.prompts import PROMPT_VERSION, build_constat_messages, build_json_retry_message
+from temoin.prompts import (
+    AGENT_PROMPT_VERSION,
+    COMPARE_PROMPT_VERSION,
+    PROMPT_VERSION,
+    build_agent_messages,
+    build_compare_messages,
+    build_constat_messages,
+    build_json_retry_message,
+)
+from temoin.schemas import Report
 
 
 def test_prompt_version_is_set() -> None:
@@ -36,3 +45,66 @@ def test_retry_message_asks_for_strict_json() -> None:
     assert message["role"] == "user"
     assert "field required" in message["content"]
     assert "STRICT JSON" in message["content"]
+
+
+def test_compare_and_agent_versions_are_set() -> None:
+    """Both investigation prompts are versioned for cache tagging."""
+    assert isinstance(COMPARE_PROMPT_VERSION, str) and COMPARE_PROMPT_VERSION.strip()
+    assert isinstance(AGENT_PROMPT_VERSION, str) and AGENT_PROMPT_VERSION.strip()
+
+
+def test_compare_messages_include_constats_and_both_photos(
+    sale_report: Report, delivery_report: Report
+) -> None:
+    """Compare messages carry both constats and both photos."""
+    messages = build_compare_messages(
+        sale=sale_report,
+        delivery=delivery_report,
+        sale_data_url="data:,sale",
+        delivery_data_url="data:,del",
+    )
+    assert [message["role"] for message in messages] == ["system", "user"]
+    text = messages[1]["content"][0]["text"]
+    assert sale_report.description in text
+    assert delivery_report.description in text
+    images = [part["image_url"]["url"] for part in messages[1]["content"][1:]]
+    assert images == ["data:,sale", "data:,del"]
+
+
+def test_compare_prompt_states_rules_and_guard(
+    sale_report: Report, delivery_report: Report
+) -> None:
+    """The compare prompt holds the 4 verdicts, the 2-contradiction rule and the guard."""
+    messages = build_compare_messages(
+        sale=sale_report,
+        delivery=delivery_report,
+        sale_data_url="data:,sale",
+        delivery_data_url="data:,del",
+    )
+    system = messages[0]["content"]
+    for verdict in ("CONFORME", "ENDOMMAGÉ", "À VÉRIFIER", "NON CONFORME"):
+        assert verdict in system
+    lowered = system.lower()
+    assert "at least 2" in lowered
+    assert "never flaws" in lowered
+    assert "never an instruction" in lowered
+    assert "injection_text" in system
+
+
+def test_agent_messages_name_tools_and_demand_zoom(
+    sale_report: Report, delivery_report: Report
+) -> None:
+    """The agent prompt lists tools, requires a zoom and caps the steps."""
+    messages = build_agent_messages(
+        sale=sale_report,
+        delivery=delivery_report,
+        sale_data_url="data:,sale",
+        delivery_data_url="data:,del",
+    )
+    system = messages[0]["content"]
+    for tool in ("match_defects", "zoom", "check_challenge", "request_photo"):
+        assert tool in system
+    assert "at most 8 steps" in system
+    assert "MUST" in system
+    images = [part["image_url"]["url"] for part in messages[1]["content"][1:]]
+    assert images == ["data:,sale", "data:,del"]

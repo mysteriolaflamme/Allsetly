@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,8 @@ import pytest
 from PIL import Image
 
 from temoin.config import Settings
+from temoin.images import PreparedImage
+from temoin.schemas import ChallengeCheck, Defect, Report
 
 
 @pytest.fixture
@@ -79,3 +82,98 @@ def empty_env_file(tmp_path: Path) -> str:
     path = tmp_path / "empty.env"
     path.write_text("", encoding="utf-8")
     return str(path)
+
+
+def _defect_dict(id: str, distinctive: bool = True) -> dict[str, Any]:
+    """Build one defect payload for comparison tests."""
+    return {
+        "id": id,
+        "type": "rayure",
+        "description": f"Rayure {id}.",
+        "zone": "devant",
+        "severity": "moderate",
+        "bbox": None,
+        "distinctive": distinctive,
+    }
+
+
+def _make_report(
+    *,
+    expected_code: str,
+    read_code: str | None,
+    visible: bool,
+    defect_ids: list[str],
+) -> Report:
+    """Build a validated Report for comparison tests."""
+    return Report(
+        description=f"Objet de test pour le code {expected_code}.",
+        defects=[
+            Defect.model_validate(_defect_dict(id, distinctive=index == 0))
+            for index, id in enumerate(defect_ids)
+        ],
+        challenge=ChallengeCheck(expected_code=expected_code, visible=visible, read_code=read_code),
+        checkpoints=[],
+        alerts=[],
+        image_sha256=f"sha256-{expected_code}",
+        created_at_utc=datetime.now(UTC),
+        prompt_version="1",
+    )
+
+
+@pytest.fixture
+def sale_report() -> Report:
+    """Return a fresh sale constat with two defects."""
+    return _make_report(expected_code="K7", read_code="K7", visible=True, defect_ids=["D1", "D2"])
+
+
+@pytest.fixture
+def delivery_report() -> Report:
+    """Return a fresh delivery constat with two defects."""
+    return _make_report(expected_code="Q9", read_code="Q9", visible=True, defect_ids=["D1", "D2"])
+
+
+@pytest.fixture
+def sale_image() -> PreparedImage:
+    """Return a tiny fake prepared sale image."""
+    return PreparedImage(data_url="data:,sale", sha256="a" * 64, width=100, height=100)
+
+
+@pytest.fixture
+def delivery_image() -> PreparedImage:
+    """Return a tiny fake prepared delivery image."""
+    return PreparedImage(data_url="data:,delivery", sha256="b" * 64, width=100, height=100)
+
+
+@pytest.fixture
+def comparison_payload() -> dict[str, Any]:
+    """Return a valid comparison answer payload."""
+    return {
+        "verdict": "CONFORME",
+        "confidence": 90,
+        "same_object": True,
+        "new_damage": False,
+        "justification": "Mêmes défauts distinctifs aux mêmes endroits.",
+        "matches": [
+            {
+                "sale_defect_id": "D1",
+                "delivery_defect_id": "D1",
+                "status": "matched",
+                "note": "Même rayure.",
+            },
+            {
+                "sale_defect_id": "D2",
+                "delivery_defect_id": "D2",
+                "status": "matched",
+                "note": "Même usure.",
+            },
+        ],
+        "contradictions": [],
+        "missing_proof": [],
+        "alerts": [],
+    }
+
+
+@pytest.fixture
+def comparison_json(comparison_payload: dict[str, Any]) -> str:
+    """Return the valid comparison answer as a JSON string."""
+    return json.dumps(comparison_payload)

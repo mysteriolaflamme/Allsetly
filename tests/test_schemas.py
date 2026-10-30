@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from temoin.schemas import Defect, Report, ReportDraft
+from temoin.schemas import Comparison, ComparisonDraft, Defect, DefectMatch, Report, ReportDraft
 
 
 def _valid_defect() -> dict[str, Any]:
@@ -73,3 +73,87 @@ def test_report_from_draft_attaches_metadata(draft_payload: dict[str, Any]) -> N
     assert report.created_at_utc == now
     assert report.prompt_version == "1"
     assert [point.defect_id for point in report.checkpoints] == ["D1"]
+
+
+def test_defect_match_statuses_need_consistent_ids() -> None:
+    """matched/changed need both ids, missing/new need exactly one."""
+    DefectMatch.model_validate(
+        {
+            "sale_defect_id": "D1",
+            "delivery_defect_id": "D2",
+            "status": "matched",
+            "note": "x",
+        }
+    )
+    DefectMatch.model_validate(
+        {
+            "sale_defect_id": "D1",
+            "delivery_defect_id": None,
+            "status": "missing",
+            "note": "x",
+        }
+    )
+    DefectMatch.model_validate(
+        {"sale_defect_id": None, "delivery_defect_id": "D2", "status": "new", "note": "x"}
+    )
+    with pytest.raises(ValidationError):
+        DefectMatch.model_validate(
+            {
+                "sale_defect_id": "D1",
+                "delivery_defect_id": None,
+                "status": "matched",
+                "note": "x",
+            }
+        )
+    with pytest.raises(ValidationError):
+        DefectMatch.model_validate(
+            {
+                "sale_defect_id": "D1",
+                "delivery_defect_id": "D2",
+                "status": "missing",
+                "note": "x",
+            }
+        )
+    with pytest.raises(ValidationError):
+        DefectMatch.model_validate(
+            {"sale_defect_id": "D1", "delivery_defect_id": None, "status": "new", "note": "x"}
+        )
+
+
+def test_comparison_draft_rejects_bad_confidence(
+    comparison_payload: dict[str, Any],
+) -> None:
+    """Confidence must stay within 0-100."""
+    comparison_payload["confidence"] = 101
+    with pytest.raises(ValidationError):
+        ComparisonDraft.model_validate(comparison_payload)
+    comparison_payload["confidence"] = -1
+    with pytest.raises(ValidationError):
+        ComparisonDraft.model_validate(comparison_payload)
+
+
+def test_comparison_from_draft_attaches_metadata(
+    comparison_payload: dict[str, Any], sale_report: Report, delivery_report: Report
+) -> None:
+    """from_draft keeps the answer and adds guardrail outcome and metadata."""
+    draft = ComparisonDraft.model_validate(comparison_payload)
+    now = datetime.now(UTC)
+    comparison = Comparison.from_draft(
+        draft,
+        verdict="ENDOMMAGÉ",
+        capped_reason=None,
+        sale=sale_report,
+        delivery=delivery_report,
+        freshness_sale_ok=True,
+        freshness_delivery_ok=False,
+        created_at_utc=now,
+        prompt_version="7",
+        disclaimer="D.",
+        trail=[],
+    )
+    assert comparison.verdict == "ENDOMMAGÉ"
+    assert comparison.model_verdict == "CONFORME"
+    assert comparison.sale_image_sha256 == sale_report.image_sha256
+    assert comparison.freshness_delivery_ok is False
+    assert comparison.prompt_version == "7"
+    assert comparison.trail == []
