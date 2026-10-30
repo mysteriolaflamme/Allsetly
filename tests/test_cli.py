@@ -288,3 +288,17 @@ def test_parser_stereo_arguments() -> None:
     )
     assert (args.command, args.left, args.right) == ("stereo", "left.jpg", "right.jpg")
     assert (args.wiggle, args.cloud, args.bbox) == ("relief.gif", "cloud.html", "400,400,600,600")
+
+
+def test_parser_video_depth_arguments() -> None:
+    """video-depth with a video, viewers and max-frames parses correctly."""
+    args = build_parser().parse_args(
+        ["video-depth", "tour.mp4", "--max-frames", "4", "--bbox", "1,2,3,4"]
+    )
+    assert (args.command, args.video, args.max_frames, args.bbox) == (
+        "video-depth",
+        "tour.mp4",
+        4,
+        "1,2,3,4",
+    )
+    assert (args.wiggle, args.cloud) == (None, None)

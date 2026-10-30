@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pytest
 from PIL import Image
@@ -15,11 +16,13 @@ from temoin.stereo import (
     StereoError,
     compute_depth,
     defect_relief,
+    depth_from_video,
     load_pair,
     pick_stereo_pair,
     relief_cloud,
     relief_wiggle,
 )
+from temoin.video import VideoError
 
 
 def _dots(seed: int = 11, size: int = 320) -> Image.Image:
@@ -38,6 +41,23 @@ def _shifted_pair(shift: int = 16, bump: int = 24) -> tuple[Image.Image, Image.I
     lo, hi = 128, 192
     right[lo:hi, lo:hi] = base[lo:hi, lo + bump : hi + bump]
     return Image.fromarray(base), Image.fromarray(right)
+
+
+def _make_stereo_video(path: Path, shifts: tuple[int, ...] = (0, 12, 24, 36)) -> Path:
+    """Write a tiny avi sliding over a chunky random texture."""
+    rng = np.random.default_rng(7)
+    base = np.full((320, 320, 3), 128, dtype=np.uint8)
+    for _ in range(1500):
+        x, y = (int(value) for value in rng.integers(0, 308, size=2))
+        size = int(rng.integers(4, 12))
+        base[y : y + size, x : x + size] = int(rng.integers(0, 256))
+    writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"MJPG"), 10, (320, 320))
+    for shift in shifts:
+        frame = np.zeros_like(base)
+        frame[:, shift:] = base[:, : 320 - shift]
+        writer.write(frame)
+    writer.release()
+    return path
 
 
 def test_pick_stereo_pair_finds_overlapping_views() -> None:
@@ -157,3 +177,46 @@ def test_stereo_command_measures_and_saves_viewers(
     assert "Zone :" in out
     assert wiggle.is_file()
     assert cloud.is_file()
+
+
+def test_depth_from_video_measures_relief(tmp_path: Path, test_settings: Settings) -> None:
+    """A sliding-dot video gives two distinct views and solid coverage."""
+    video = _make_stereo_video(tmp_path / "tour.avi")
+    matrix, left = depth_from_video(video, settings=test_settings)
+    assert matrix.coverage > 0.25
+    assert matrix.left_index != matrix.right_index
+    assert left.mode == "RGB"
+
+
+def test_depth_from_video_rejects_blank_video(tmp_path: Path, test_settings: Settings) -> None:
+    """A video without texture gives no overlapping pair."""
+    path = tmp_path / "blank.mp4"
+    writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"mp4v"), 10, (160, 120))
+    for _ in range(3):
+        writer.write(np.full((120, 160, 3), 128, dtype=np.uint8))
+    writer.release()
+    with pytest.raises(StereoError, match="trop semblables"):
+        depth_from_video(path, settings=test_settings)
+
+
+def test_depth_from_video_rejects_missing_file(tmp_path: Path, test_settings: Settings) -> None:
+    """A missing video keeps the video error contract."""
+    with pytest.raises(VideoError, match="introuvable"):
+        depth_from_video(tmp_path / "nope.mp4", settings=test_settings)
+
+
+def test_video_depth_command_measures_from_video(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_settings: Settings,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """video-depth prints used views, coverage and saves the GIF (offline)."""
+    video = _make_stereo_video(tmp_path / "tour.avi")
+    monkeypatch.setattr("temoin.__main__.load_settings", lambda *args: test_settings)
+    wiggle = tmp_path / "relief.gif"
+    assert main(["video-depth", str(video), "--wiggle", str(wiggle)]) == 0
+    out = capsys.readouterr().out
+    assert "Vues utilisées" in out
+    assert "Relief mesuré" in out
+    assert wiggle.is_file()

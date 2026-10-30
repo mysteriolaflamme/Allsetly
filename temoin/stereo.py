@@ -19,6 +19,7 @@ import plotly.graph_objects as go
 from PIL import Image
 
 from temoin.config import Settings, load_settings
+from temoin.video import extract_frames
 
 logger = logging.getLogger(__name__)
 
@@ -186,6 +187,30 @@ def compute_depth(
         left_index=left_index,
         right_index=right_index,
     )
+
+
+def depth_from_video(
+    video: str | Path, *, settings: Settings | None = None, max_frames: int | None = None
+) -> tuple[DepthMatrix, Image.Image]:
+    """Measure relief from a walkaround video (best overlapping frame pair)."""
+    active = settings or load_settings()
+    wanted = active.video_max_frames if max_frames is None else max_frames
+    frames = extract_frames(
+        video,
+        max_frames=wanted,
+        max_pixels=active.image_max_pixels,
+        max_megabytes=active.video_max_megabytes,
+    )
+    images = [frame.image for frame in frames]
+    left_pos, right_pos = pick_stereo_pair(images)
+    matrix = compute_depth(
+        images[left_pos],
+        images[right_pos],
+        settings=active,
+        left_index=frames[left_pos].index,
+        right_index=frames[right_pos].index,
+    )
+    return matrix, images[left_pos]
 
 
 def defect_relief(matrix: DepthMatrix, bbox: list[int]) -> ReliefStats:

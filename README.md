@@ -27,8 +27,9 @@ added here (deploy guide below).
 - **Video constat** — walkaround video fused into multi-view confirmed flaws.
 - **Materials + condition grade** — observed vs declared, A/B/C/D note.
 - **Forensics** — retouch signals plus photo quality coaching.
-- **Depth Matrix** — CPU-only relief from two views (no GPU), parallax GIF
-  and interactive 3D cloud; unmeasured zones stay empty, never invented.
+- **Depth Matrix** — CPU-only relief from two views or a video (no GPU),
+  parallax GIF and interactive 3D cloud; unmeasured zones stay empty, never
+  invented.
 - **FR/EN interface**, phone-friendly flows (Sale / Delivery / Verify).
 
 ## Evaluation
@@ -78,12 +79,13 @@ CLI:
 .venv\Scripts\python -m temoin video-constat tour.mp4 --code K7
 .venv\Scripts\python -m temoin forensics photo.jpg
 .venv\Scripts\python -m temoin stereo left.jpg right.jpg --bbox 400,400,600,600
+.venv\Scripts\python -m temoin video-depth tour.mp4 --cloud cloud.html
 .venv\Scripts\python -m temoin verify cert-1.json
 .venv\Scripts\python -m eval.run_eval
 ```
 
 Tests and lint from the project root: `python -m pytest`, `ruff check .`,
-`ruff format .` (210 tests, offline with a fake client).
+`ruff format .` (215 tests, offline with a fake client).
 
 ## Deploy your own (Streamlit Community Cloud)
 

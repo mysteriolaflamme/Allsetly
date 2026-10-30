@@ -160,6 +160,7 @@ Chaque étape se termine par : tests verts, ruff propre, démonstration lancée,
 | 11 | **Matières + état** : matières annoncées/observées, note A/B/C/D, facteurs de valeur | Contrefaçon matière détectée en démo, note affichée |
 | 12 | **Forensics** : retouches (ELA/bruit/EXIF), qualité photo + coaching | Photo retouchée signalée, photo floue coachée |
 | 13 | **Depth Matrix** : relief CPU sans GPU depuis 2 vues (ORB + matrice essentielle + SGBM), `stereo.py`, GIF parallaxe + nuage 3D, CLI `stereo`, onglet Profondeur | Relief mesuré sur vraies vues, zones inconnues à −1, jamais inventées |
+| 14 | **Profondeur vidéo** : `depth_from_video` (meilleure paire de frames), CLI `video-depth`, vidéo dans l'onglet Profondeur | Relief vidéo mesuré, vues utilisées affichées |
 
 **Commit git à la fin de chaque étape**, avec un message clair (`step 4: investigator agent + comparison`).
 

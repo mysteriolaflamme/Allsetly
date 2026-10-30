@@ -18,7 +18,14 @@ from temoin.model import ModelError
 from temoin.report import create_report
 from temoin.schemas import Certificate, Comparison, Report, TrailEntry, VideoReport
 from temoin.seal import verify_certificate, verify_chain
-from temoin.stereo import StereoError, compute_depth, load_pair, relief_cloud, relief_wiggle
+from temoin.stereo import (
+    StereoError,
+    compute_depth,
+    depth_from_video,
+    load_pair,
+    relief_cloud,
+    relief_wiggle,
+)
 from temoin.storage import (
     StorageError,
     attach_constat,
@@ -483,29 +490,44 @@ def video_flow(settings: Settings, lang: str) -> None:
 
 
 def depth_flow(settings: Settings, lang: str) -> None:
-    """Run the Depth Matrix flow: two views, animated relief, 3D cloud."""
+    """Run the Depth Matrix flow: two views or a video, animated relief, 3D cloud."""
     st.info(t("depth_hint", lang))
     left_upload = st.file_uploader(t("depth_left", lang), type=["jpg", "jpeg", "png", "webp"])
     right_upload = st.file_uploader(t("depth_right", lang), type=["jpg", "jpeg", "png", "webp"])
+    video_upload = st.file_uploader(
+        t("depth_video", lang), type=["mp4", "mov", "webm", "avi", "m4v"]
+    )
     if not st.button(t("depth_button", lang)):
-        return
-    if left_upload is None or right_upload is None:
-        st.warning(t("depth_need", lang))
         return
     depth_dir = settings.data_dir / "depth"
     depth_dir.mkdir(parents=True, exist_ok=True)
-    left_path = depth_dir / "left.jpg"
-    right_path = depth_dir / "right.jpg"
-    left_path.write_bytes(left_upload.getvalue())
-    right_path.write_bytes(right_upload.getvalue())
     with st.spinner(t("depth_running", lang)):
         try:
-            left, right = load_pair(left_path, right_path)
-            matrix = compute_depth(left, right, settings=settings)
-        except (StereoError, ConfigError) as error:
+            if video_upload is not None:
+                suffix = Path(video_upload.name).suffix.lower() or ".mp4"
+                video_path = depth_dir / f"tour{suffix}"
+                video_path.write_bytes(video_upload.getvalue())
+                matrix, left = depth_from_video(video_path, settings=settings)
+                picked: str | None = t("depth_frames", lang).format(
+                    a=matrix.left_index, b=matrix.right_index
+                )
+            elif left_upload is not None and right_upload is not None:
+                left_path = depth_dir / "left.jpg"
+                right_path = depth_dir / "right.jpg"
+                left_path.write_bytes(left_upload.getvalue())
+                right_path.write_bytes(right_upload.getvalue())
+                left, right = load_pair(left_path, right_path)
+                matrix = compute_depth(left, right, settings=settings)
+                picked = None
+            else:
+                st.warning(t("depth_need", lang))
+                return
+        except (StereoError, VideoError, ConfigError) as error:
             st.error(str(error))
             return
     st.success(t("depth_coverage", lang).format(pct=round(matrix.coverage * 100)))
+    if picked is not None:
+        st.caption(picked)
     st.subheader(t("depth_wiggle", lang))
     st.image(relief_wiggle(left, matrix))
     st.subheader(t("depth_cloud", lang))

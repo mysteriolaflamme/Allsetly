@@ -255,8 +255,16 @@ STRINGS: dict[str, dict[str, str]] = {
     "depth_button": {"fr": "Mesurer le relief", "en": "Measure the relief"},
     "depth_running": {"fr": "Mesure du relief en cours…", "en": "Measuring relief…"},
     "depth_need": {
-        "fr": "Déposez les deux vues pour mesurer le relief.",
-        "en": "Drop both views to measure the relief.",
+        "fr": "Déposez deux vues ou une vidéo pour mesurer le relief.",
+        "en": "Drop two views or a video to measure the relief.",
+    },
+    "depth_video": {
+        "fr": "Ou vidéo du tour de l'objet",
+        "en": "Or walkaround video of the item",
+    },
+    "depth_frames": {
+        "fr": "Vues utilisées : {a} et {b}.",
+        "en": "Views used: {a} and {b}.",
     },
     "depth_coverage": {
         "fr": "Relief mesuré sur {pct} % de l'image.",

@@ -23,9 +23,11 @@ from temoin.model import ModelError
 from temoin.report import create_report
 from temoin.seal import CertificateError, load_certificate, verify_certificate
 from temoin.stereo import (
+    DepthMatrix,
     StereoError,
     compute_depth,
     defect_relief,
+    depth_from_video,
     load_pair,
     relief_cloud,
     relief_wiggle,
@@ -73,6 +75,12 @@ def build_parser() -> argparse.ArgumentParser:
     stereo.add_argument("--wiggle", default=None, help="Save the parallax GIF here.")
     stereo.add_argument("--cloud", default=None, help="Save the 3D cloud HTML here.")
     stereo.add_argument("--bbox", default=None, help="Defect box 0-1000, e.g. 400,400,600,600.")
+    vdepth = sub.add_parser("video-depth", help="Measure relief from a walkaround video.")
+    vdepth.add_argument("video", help="Path to the video, e.g. tour.mp4.")
+    vdepth.add_argument("--wiggle", default=None, help="Save the parallax GIF here.")
+    vdepth.add_argument("--cloud", default=None, help="Save the 3D cloud HTML here.")
+    vdepth.add_argument("--bbox", default=None, help="Defect box 0-1000, e.g. 400,400,600,600.")
+    vdepth.add_argument("--max-frames", type=int, default=None)
     return parser
 
 
@@ -197,17 +205,16 @@ def forensics_main(photo: str, ela_map_path: str | None) -> int:
     return 0
 
 
-def stereo_main(
-    left: str, right: str, wiggle: str | None, cloud: str | None, bbox: str | None
-) -> int:
-    """Measure relief from two views and save the parallax viewers."""
-    settings = load_settings()
-    first, second = load_pair(left, right)
-    matrix = compute_depth(first, second, settings=settings)
-    lines = [
-        f"Vues : {left} / {right}",
-        f"Relief mesuré sur {matrix.coverage * 100:.0f} % de l'image.",
-    ]
+def _depth_output_lines(
+    first: Image.Image,
+    matrix: DepthMatrix,
+    wiggle: str | None,
+    cloud: str | None,
+    bbox: str | None,
+    fallback: Path,
+) -> list[str]:
+    """Describe one relief box, save viewers and return the output lines."""
+    lines = []
     if bbox:
         try:
             box = [int(item) for item in bbox.split(",")]
@@ -220,12 +227,49 @@ def stereo_main(
             f"Zone : relief {stats.inside:.2f}, "
             f"alentours {stats.ring:.2f} (écart {stats.delta:+.2f})."
         )
-    wiggle_path = Path(wiggle) if wiggle else Path(left).parent / (Path(left).stem + "-relief.gif")
+    wiggle_path = Path(wiggle) if wiggle else fallback
     wiggle_path.write_bytes(relief_wiggle(first, matrix))
     lines.append(f"Animation : {wiggle_path}")
     if cloud:
         relief_cloud(first, matrix).write_html(cloud, include_plotlyjs="cdn")
         lines.append(f"Nuage 3D : {cloud}")
+    return lines
+
+
+def stereo_main(
+    left: str, right: str, wiggle: str | None, cloud: str | None, bbox: str | None
+) -> int:
+    """Measure relief from two views and save the parallax viewers."""
+    settings = load_settings()
+    first, second = load_pair(left, right)
+    matrix = compute_depth(first, second, settings=settings)
+    lines = [
+        f"Vues : {left} / {right}",
+        f"Relief mesuré sur {matrix.coverage * 100:.0f} % de l'image.",
+    ]
+    fallback = Path(left).parent / (Path(left).stem + "-relief.gif")
+    lines.extend(_depth_output_lines(first, matrix, wiggle, cloud, bbox, fallback))
+    sys.stdout.write("\n".join(lines) + "\n")
+    return 0
+
+
+def video_depth_main(
+    video: str,
+    wiggle: str | None,
+    cloud: str | None,
+    bbox: str | None,
+    max_frames: int | None,
+) -> int:
+    """Measure relief from a walkaround video and save the parallax viewers."""
+    settings = load_settings()
+    matrix, first = depth_from_video(video, settings=settings, max_frames=max_frames)
+    lines = [
+        f"Vidéo : {video}",
+        f"Vues utilisées : {matrix.left_index} et {matrix.right_index}.",
+        f"Relief mesuré sur {matrix.coverage * 100:.0f} % de l'image.",
+    ]
+    fallback = Path(video).parent / (Path(video).stem + "-relief.gif")
+    lines.extend(_depth_output_lines(first, matrix, wiggle, cloud, bbox, fallback))
     sys.stdout.write("\n".join(lines) + "\n")
     return 0
 
@@ -254,6 +298,8 @@ def main(argv: list[str] | None = None) -> int:
             return forensics_main(args.photo, args.ela_map)
         elif args.command == "stereo":
             return stereo_main(args.left, args.right, args.wiggle, args.cloud, args.bbox)
+        elif args.command == "video-depth":
+            return video_depth_main(args.video, args.wiggle, args.cloud, args.bbox, args.max_frames)
         else:
             declared = [item.strip() for item in (args.materials or "").split(",") if item.strip()]
             result = create_report(args.photo, args.code, declared_materials=declared)
