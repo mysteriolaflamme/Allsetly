@@ -134,6 +134,17 @@ def test_seal_requires_both_constats(
         seal_comparison_in_transaction(tx, comparison, storage_settings)
 
 
+def test_voice_declaration_persists(storage_settings: Settings) -> None:
+    """A transcribed voice note survives save/load with its transaction."""
+    tx = create_transaction(storage_settings, sale_code="K7")
+    assert tx.sale_voice_declaration == ""
+    tx.sale_voice_declaration = "Je vends ce casque en l'état."
+    save_transaction(tx, storage_settings)
+    assert load_transaction(tx.id, storage_settings).sale_voice_declaration == (
+        "Je vends ce casque en l'état."
+    )
+
+
 def test_delete_transaction(storage_settings: Settings) -> None:
     """Deletion erases the directory; unknown ids give a French error."""
     tx = create_transaction(storage_settings, sale_code="K7")

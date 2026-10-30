@@ -233,6 +233,16 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Note calculée depuis {n} défaut(s) relevé(s).",
         "en": "Grade computed from {n} recorded flaw(s).",
     },
+    "voice_title": {"fr": "Déclaration vocale", "en": "Voice declaration"},
+    "voice_record": {"fr": "Enregistrer au micro", "en": "Record with microphone"},
+    "voice_upload": {"fr": "Ou déposer une note WAV", "en": "Or drop a WAV note"},
+    "voice_button": {"fr": "Transcrire", "en": "Transcribe"},
+    "voice_running": {"fr": "Transcription en cours…", "en": "Transcribing…"},
+    "voice_no_audio": {
+        "fr": "Enregistrez ou déposez d'abord une note vocale.",
+        "en": "Record or upload a voice note first.",
+    },
+    "voice_empty": {"fr": "Aucune parole détectée.", "en": "No speech detected."},
 }
 
 VERDICTS: dict[str, dict[str, str]] = {

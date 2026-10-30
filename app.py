@@ -12,7 +12,7 @@ from temoin.compare import is_fresh
 from temoin.config import ConfigError, Settings, load_settings
 from temoin.i18n import t, verdict_label
 from temoin.images import ImageError, decode_data_url, draw_defects, prepare_image
-from temoin.meta_api import MetaAPIError, draw_segmentation, segment_image
+from temoin.meta_api import MetaAPIError, draw_segmentation, segment_image, transcribe_audio
 from temoin.model import ModelError
 from temoin.report import create_report
 from temoin.schemas import Certificate, Comparison, Report, TrailEntry, VideoReport
@@ -225,6 +225,32 @@ def sale_flow(settings: Settings, lang: str) -> None:
     text = t("sale_share_text", lang).format(tx=tx.id)
     st.link_button(t("sale_whatsapp", lang), "https://wa.me/?text=" + urllib.parse.quote(text))
     st.caption(t("sale_simulated", lang))
+    st.subheader(t("voice_title", lang))
+    record = st.audio_input(t("voice_record", lang))
+    upload_voice = st.file_uploader(t("voice_upload", lang), type=["wav"])
+    if st.button(t("voice_button", lang)):
+        audio_bytes: bytes | None = None
+        if record is not None:
+            audio_bytes = record.getvalue()
+        elif upload_voice is not None:
+            audio_bytes = upload_voice.getvalue()
+        if audio_bytes is None:
+            st.warning(t("voice_no_audio", lang))
+        else:
+            with st.spinner(t("voice_running", lang)):
+                try:
+                    transcript = transcribe_audio(audio_bytes, settings=settings)
+                except (MetaAPIError, ConfigError) as error:
+                    st.error(str(error))
+                    return
+            if not transcript.text:
+                st.warning(t("voice_empty", lang))
+            else:
+                tx.sale_voice_declaration = transcript.text
+                save_transaction(tx, settings)
+                st.rerun()
+    if tx.sale_voice_declaration:
+        st.write(f"« {tx.sale_voice_declaration} »")
 
 
 def delivery_flow(settings: Settings, lang: str) -> None:

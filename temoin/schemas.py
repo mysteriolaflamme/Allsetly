@@ -296,6 +296,7 @@ class Transaction(BaseModel):
     sale_constat: Report | None = None
     delivery_constat: Report | None = None
     certificates: list[Certificate] = Field(default_factory=list)
+    sale_voice_declaration: str = Field(default="", description="Transcribed seller voice note.")
 
 
 class FusedDefect(BaseModel):
