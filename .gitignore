@@ -15,3 +15,6 @@ __pycache__/
 # Local documents and runtime data (never committed)
 *.docx
 data/
+
+# Evaluation intermediates (RESULTS.md is published)
+eval/results/

@@ -1,0 +1,21 @@
+pair_id,sale,delivery,sale_code,delivery_code,relation,codes,expected,notes
+same-01,same-01/sale.jpg,same-01/delivery.jpg,K7,A8,same,ok,CONFORME,golden: two real shots
+same-02,same-02/sale.jpg,same-02/delivery.jpg,K7,K7,same,ok,CONFORME,identical photo twice
+same-03,same-03/sale.jpg,same-03/delivery.jpg,A8,A8,same,ok,CONFORME,identical photo twice
+same-04,same-04/sale.jpg,same-04/delivery.jpg,K7,K7,same,ok,CONFORME,rotated 15 deg
+same-05,same-05/sale.jpg,same-05/delivery.jpg,K7,K7,same,ok,CONFORME,brighter 1.3x
+same-06,same-06/sale.jpg,same-06/delivery.jpg,K7,K7,same,ok,CONFORME,darker 0.7x
+same-07,same-07/sale.jpg,same-07/delivery.jpg,A8,A8,same,ok,CONFORME,rotated -12 deg
+same-08,same-08/sale.jpg,same-08/delivery.jpg,A8,A8,same,ok,CONFORME,brighter 1.4x
+same-09,same-09/sale.jpg,same-09/delivery.jpg,K7,K7,same,ok,CONFORME,10pct border crop
+same-10,same-10/sale.jpg,same-10/delivery.jpg,A8,A8,same,ok,CONFORME,contrast 1.5x
+same-11,same-11/sale.jpg,same-11/delivery.jpg,K7,,same,missing,À VÉRIFIER,code cropped out
+same-12,same-12/sale.jpg,same-12/delivery.jpg,A8,,same,missing,À VÉRIFIER,code cropped out
+same-13,same-13/sale.jpg,same-13/delivery.jpg,,A8,same,missing,À VÉRIFIER,sale code missing
+same-14,same-14/sale.jpg,same-14/delivery.jpg,K7,,same,missing,À VÉRIFIER,close-up no code
+diff-01,diff-01/sale.jpg,diff-01/delivery.jpg,K7,K7,different,ok,À VÉRIFIER,paper only: object not visible, must never clear as same
+diff-02,diff-02/sale.jpg,diff-02/delivery.jpg,A8,A8,different,ok,À VÉRIFIER,paper only: object not visible, must never clear as same
+diff-03,diff-03/sale.jpg,diff-03/delivery.jpg,K7,K7,different,ok,À VÉRIFIER,paper only: object not visible, must never clear as same
+diff-04,diff-04/sale.jpg,diff-04/delivery.jpg,K7,,different,missing,À VÉRIFIER,empty table vs object
+diff-05,diff-05/sale.jpg,diff-05/delivery.jpg,A8,,different,missing,À VÉRIFIER,empty floor vs object
+diff-06,diff-06/sale.jpg,diff-06/delivery.jpg,K7,,different,missing,À VÉRIFIER,empty table vs object
