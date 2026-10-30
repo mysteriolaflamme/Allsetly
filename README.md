@@ -85,7 +85,7 @@ CLI:
 ```
 
 Tests and lint from the project root: `python -m pytest`, `ruff check .`,
-`ruff format .` (215 tests, offline with a fake client).
+`ruff format .` (216 tests, offline with a fake client).
 
 ## Deploy your own (Streamlit Community Cloud)
 

@@ -144,6 +144,12 @@ def compute_depth(
     )
     if len(good) < active.stereo_min_matches:
         raise StereoError("Pas assez de points communs entre les deux vues.")
+    motion = float(np.median(np.linalg.norm(points_right - points_left, axis=1)))
+    if motion < 2.0:
+        raise StereoError(
+            "Pas de parallaxe entre les deux vues : photographiez le même côté "
+            "de l'objet en vous décalant légèrement, sans le retourner."
+        )
     rect_left, rect_right = _rectify(left_gray, right_gray, points_left, points_right)
     block = active.stereo_block_size
     matcher = cv2.StereoSGBM_create(

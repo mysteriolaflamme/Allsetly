@@ -101,6 +101,13 @@ def test_compute_depth_rejects_featureless_views(test_settings: Settings) -> Non
         compute_depth(blank, blank, settings=test_settings)
 
 
+def test_compute_depth_rejects_static_pair(test_settings: Settings) -> None:
+    """Two identical views have no parallax to measure."""
+    left, _ = _shifted_pair()
+    with pytest.raises(StereoError, match="parallaxe"):
+        compute_depth(left, left, settings=test_settings)
+
+
 def test_relief_wiggle_returns_gif_bytes(test_settings: Settings) -> None:
     """The parallax render is a valid animated GIF."""
     left, right = _shifted_pair()

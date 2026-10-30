@@ -247,8 +247,8 @@ STRINGS: dict[str, dict[str, str]] = {
     "for_ok": {"fr": "Photo saine, bonne qualité.", "en": "Photo clean, good quality."},
     "tab_depth": {"fr": "Profondeur", "en": "Depth"},
     "depth_hint": {
-        "fr": "Déposez deux photos du même objet sous deux angles proches (un pas à droite).",
-        "en": "Drop two photos of the same item from two close angles (one step right).",
+        "fr": "Deux photos du même côté de l'objet, sous deux angles proches (un pas à droite).",
+        "en": "Two photos of the same side of the item, from two close angles (one step right).",
     },
     "depth_left": {"fr": "Vue de gauche", "en": "Left view"},
     "depth_right": {"fr": "Vue de droite", "en": "Right view"},

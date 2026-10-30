@@ -16,5 +16,8 @@ __pycache__/
 *.docx
 data/
 
+# Private manual tests (never committed)
+/test/
+
 # Evaluation intermediates (RESULTS.md is published)
 eval/results/
