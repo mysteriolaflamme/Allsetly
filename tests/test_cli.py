@@ -10,6 +10,7 @@ import pytest
 
 from temoin.__main__ import build_parser, main
 from temoin.config import Settings
+from temoin.forensics import ForensicsReport, QualityReport
 from temoin.meta_api import Segmentation, SegmentMask, VoiceTranscript, VoiceTurn
 from temoin.schemas import (
     Comparison,
@@ -223,3 +224,48 @@ def test_parser_constat_materials_are_optional() -> None:
         ["constat", "photo.jpg", "--code", "K7", "--materials", "cuir,bois"]
     )
     assert args.materials == "cuir,bois"
+
+
+def test_parser_forensics_arguments() -> None:
+    """forensics with a photo and an ELA map path parses correctly."""
+    args = build_parser().parse_args(["forensics", "photo.jpg", "--ela-map", "ela.png"])
+    assert (args.command, args.photo, args.ela_map) == ("forensics", "photo.jpg", "ela.png")
+
+
+def test_forensics_command_prints_signals(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    photo_path: Path,
+    test_settings: Settings,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """forensics prints signals, coaching and saves the ELA map on request."""
+    monkeypatch.setattr("temoin.__main__.load_settings", lambda *args: test_settings)
+    made = ForensicsReport(
+        suspicious=True,
+        signals=("Montage possible.",),
+        quality=QualityReport(
+            sharpness=3.0,
+            width=100,
+            height=100,
+            brightness=50.0,
+            ok=False,
+            advice=("Stabilisez.",),
+        ),
+        ela_mean=1.0,
+        ela_p99=2.0,
+        noise_median=1.0,
+        noise_suspicious_blocks=9,
+        noise_total_blocks=64,
+        software=None,
+    )
+    monkeypatch.setattr("temoin.__main__.analyze_photo", lambda *a, **k: made)
+    assert main(["forensics", "photo.jpg"]) == 0
+    out = capsys.readouterr().out
+    assert "Photo suspecte" in out
+    assert "Montage possible." in out
+    assert "Stabilisez." in out
+    ela_path = tmp_path / "ela.png"
+    assert main(["forensics", str(photo_path), "--ela-map", str(ela_path)]) == 0
+    assert ela_path.is_file()
+    assert "Carte ELA" in capsys.readouterr().out

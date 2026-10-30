@@ -7,8 +7,11 @@ import logging
 import sys
 from pathlib import Path
 
+from PIL import Image
+
 from temoin.agent import run_investigation
 from temoin.config import ConfigError, load_settings
+from temoin.forensics import analyze_photo, ela_map
 from temoin.images import ImageError, decode_data_url, prepare_image
 from temoin.meta_api import (
     MetaAPIError,
@@ -53,6 +56,9 @@ def build_parser() -> argparse.ArgumentParser:
     video.add_argument("video", help="Path to the video, e.g. tour.mp4.")
     video.add_argument("--code", required=True, help="Challenge code, e.g. K7.")
     video.add_argument("--max-frames", type=int, default=None)
+    forensics = sub.add_parser("forensics", help="Check a photo for retouching and quality.")
+    forensics.add_argument("photo", help="Path to the photo, e.g. photo.jpg.")
+    forensics.add_argument("--ela-map", default=None, help="Save the ELA map image here.")
     return parser
 
 
@@ -151,6 +157,32 @@ def video_main(video: str, code: str, max_frames: int | None) -> int:
     return 0
 
 
+def forensics_main(photo: str, ela_map_path: str | None) -> int:
+    """Analyse a photo and print retouch signals with quality coaching."""
+    settings = load_settings()
+    report = analyze_photo(photo, settings=settings)
+    lines = []
+    if report.suspicious:
+        lines.append("Photo suspecte :")
+        lines.extend(f"  - {signal}" for signal in report.signals)
+    else:
+        lines.append("Photo saine.")
+    if report.quality.advice:
+        lines.append("Qualité :")
+        lines.extend(f"  - {tip}" for tip in report.quality.advice)
+    else:
+        lines.append(f"Netteté : {report.quality.sharpness:.1f} (bonne).")
+    if ela_map_path:
+        with Image.open(photo) as handle:
+            handle.load()
+            ela_map(handle.convert("RGB"), quality=settings.forensics_ela_quality).save(
+                ela_map_path
+            )
+        lines.append(f"Carte ELA : {ela_map_path}")
+    sys.stdout.write("\n".join(lines) + "\n")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI and return the exit code."""
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
@@ -171,6 +203,8 @@ def main(argv: list[str] | None = None) -> int:
             return transcribe_main(args.audio, args.language_bias, args.keywords)
         elif args.command == "video-constat":
             return video_main(args.video, args.code, args.max_frames)
+        elif args.command == "forensics":
+            return forensics_main(args.photo, args.ela_map)
         else:
             declared = [item.strip() for item in (args.materials or "").split(",") if item.strip()]
             result = create_report(args.photo, args.code, declared_materials=declared)

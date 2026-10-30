@@ -42,6 +42,9 @@ class Settings:
     model_api_key: str = ""
     video_max_frames: int = 6
     video_max_megabytes: float = 200.0
+    forensics_ela_quality: int = 90
+    forensics_noise_ratio: float = 0.12
+    forensics_blur_min: float = 8.0
 
 
 def _read_streamlit_secrets() -> dict[str, str]:

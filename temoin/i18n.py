@@ -243,6 +243,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Record or upload a voice note first.",
     },
     "voice_empty": {"fr": "Aucune parole détectée.", "en": "No speech detected."},
+    "for_title": {"fr": "Vérifications photo", "en": "Photo checks"},
+    "for_ok": {"fr": "Photo saine, bonne qualité.", "en": "Photo clean, good quality."},
 }
 
 VERDICTS: dict[str, dict[str, str]] = {

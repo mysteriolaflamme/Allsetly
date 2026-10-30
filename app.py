@@ -10,6 +10,7 @@ import streamlit as st
 from temoin.agent import run_investigation
 from temoin.compare import is_fresh
 from temoin.config import ConfigError, Settings, load_settings
+from temoin.forensics import analyze_photo
 from temoin.i18n import t, verdict_label
 from temoin.images import ImageError, decode_data_url, draw_defects, prepare_image
 from temoin.meta_api import MetaAPIError, draw_segmentation, segment_image, transcribe_audio
@@ -202,6 +203,13 @@ def sale_flow(settings: Settings, lang: str) -> None:
             photo_path.write_bytes(upload.getvalue())
             with st.spinner(t("sale_analyzing", lang)):
                 try:
+                    forensics = analyze_photo(photo_path, settings=settings)
+                    if forensics.suspicious or forensics.quality.advice:
+                        st.subheader(t("for_title", lang))
+                        for signal in forensics.signals:
+                            st.warning(signal)
+                        for tip in forensics.quality.advice:
+                            st.info(tip)
                     declared = [item.strip() for item in declared_raw.split(",") if item.strip()]
                     st.session_state.sale_materials = declared_raw
                     report = create_report(
