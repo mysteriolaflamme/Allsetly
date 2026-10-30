@@ -18,6 +18,7 @@ from temoin.stereo import (
     defect_relief,
     depth_from_video,
     load_pair,
+    normalize_relief,
     pick_stereo_pair,
     relief_cloud,
     relief_wiggle,
@@ -99,6 +100,17 @@ def test_compute_depth_rejects_featureless_views(test_settings: Settings) -> Non
     blank = Image.new("RGB", (160, 120))
     with pytest.raises(StereoError, match="points communs"):
         compute_depth(blank, blank, settings=test_settings)
+
+
+def test_normalize_relief_ignores_outliers() -> None:
+    """Extreme disparities saturate instead of flattening the scene."""
+    disparity = np.full((20, 20), 20.0, dtype=np.float32)
+    disparity[5:15, 5:15] = 24.0
+    disparity[0, 0] = 63.0
+    disparity[19, 19] = 0.06
+    relief = normalize_relief(disparity, disparity > 0)
+    assert relief[10, 10] > 0.9
+    assert relief[0, 19] < 0.1
 
 
 def test_compute_depth_rejects_static_pair(test_settings: Settings) -> None:

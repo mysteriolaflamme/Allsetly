@@ -50,7 +50,13 @@ class Settings:
     stereo_num_disparities: int = 64
     stereo_block_size: int = 7
     stereo_uniqueness: int = 10
-    stereo_max_width: int = 240
+    stereo_max_width: int = 320
+    monodepth_model_url: str = (
+        "https://github.com/isl-org/MiDaS/releases/download/v2_1/model-small.onnx"
+    )
+    monodepth_model_sha256: str = "2d8c6cb8f415229daf1eb041024208e2608c9f98e17c81cc7c6ecb449c56fd58"
+    monodepth_model_file: str = "models/midas-small.onnx"
+    monodepth_input_size: int = 256
 
 
 def _read_streamlit_secrets() -> dict[str, str]:

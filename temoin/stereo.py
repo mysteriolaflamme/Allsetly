@@ -38,6 +38,7 @@ class DepthMatrix:
     coverage: float
     left_index: int
     right_index: int
+    method: str = "stereo"
 
 
 @dataclass(frozen=True)
@@ -66,13 +67,60 @@ def _orb_matches(
     return points_left, points_right, good
 
 
+def _camera_matrix(width: int, height: int) -> np.ndarray:
+    """Approximate pinhole matrix (focal length = 1.2 x longest side)."""
+    focal = 1.2 * max(width, height)
+    return np.array([[focal, 0, width / 2], [0, focal, height / 2], [0, 0, 1]])
+
+
+def _pair_quality(
+    left_gray: np.ndarray, points_left: np.ndarray, points_right: np.ndarray
+) -> tuple[float, float] | None:
+    """Inlier count and disparity spread (None when geometry is unstable)."""
+    height, width = left_gray.shape
+    camera = _camera_matrix(width, height)
+    essential, mask = cv2.findEssentialMat(
+        points_left, points_right, camera, method=cv2.RANSAC, prob=0.999, threshold=1.0
+    )
+    if essential is None or mask is None or int(mask.ravel().sum()) < 15:
+        return None
+    passed, rotation, translation, _ = cv2.recoverPose(
+        essential, points_left, points_right, camera, mask=mask
+    )
+    if passed < 15:
+        return None
+    rect_left, rect_right, proj_left, proj_right, _, _, _ = cv2.stereoRectify(
+        camera,
+        None,
+        camera,
+        None,
+        (width, height),
+        rotation,
+        translation,
+        flags=cv2.CALIB_ZERO_DISPARITY,
+        alpha=0,
+    )
+    rectified_left = cv2.undistortPoints(points_left, camera, None, R=rect_left, P=proj_left)
+    rectified_right = cv2.undistortPoints(points_right, camera, None, R=rect_right, P=proj_right)
+    inliers = mask.ravel() > 0
+    count = float(inliers.sum())
+    fore = rectified_right[inliers, 0, 0] - rectified_left[inliers, 0, 0]
+    back = np.abs(rectified_right[inliers, 0, 1] - rectified_left[inliers, 0, 1])
+    if float(np.median(back)) > 1.0:
+        return None
+    spread = float(np.percentile(fore, 75) - np.percentile(fore, 25))
+    return count, spread
+
+
 def pick_stereo_pair(images: list[Image.Image], *, min_matches: int = 30) -> tuple[int, int]:
-    """Pick the overlapping pair with the most matches and real parallax."""
+    """Pick the pair with the strongest consistent parallax (flat fallback)."""
     if len(images) < 2:
         raise StereoError("Il faut au moins deux vues pour mesurer le relief.")
     grays = [np.asarray(image.convert("L")) for image in images]
-    best: tuple[int, int] | None = None
-    best_count = 0
+    best_deep: tuple[int, int] | None = None
+    best_deep_score = 0.0
+    best_flat: tuple[int, int] | None = None
+    best_flat_score = 0.0
     for left in range(len(grays)):
         for right in range(left + 1, len(grays)):
             points_left, points_right, good = _orb_matches(
@@ -81,9 +129,17 @@ def pick_stereo_pair(images: list[Image.Image], *, min_matches: int = 30) -> tup
             if len(good) < min_matches:
                 continue
             motion = float(np.median(np.linalg.norm(points_right - points_left, axis=1)))
-            if motion < 2.0 or len(good) <= best_count:
+            if motion < 2.0:
                 continue
-            best, best_count = (left, right), len(good)
+            quality = _pair_quality(grays[left], points_left, points_right)
+            if quality is None:
+                continue
+            count, spread = quality
+            if spread >= 1.0 and count * spread > best_deep_score:
+                best_deep, best_deep_score = (left, right), count * spread
+            if count > best_flat_score:
+                best_flat, best_flat_score = (left, right), count
+    best = best_deep or best_flat
     if best is None:
         raise StereoError("Les vues sont trop semblables ou trop floues pour mesurer le relief.")
     return best
@@ -94,8 +150,7 @@ def _rectify(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Rectify a pair with an approximated focal length (f = 1.2 x width)."""
     height, width = left_gray.shape
-    focal = 1.2 * max(width, height)
-    camera = np.array([[focal, 0, width / 2], [0, focal, height / 2], [0, 0, 1]])
+    camera = _camera_matrix(width, height)
     essential, mask = cv2.findEssentialMat(
         points_left, points_right, camera, method=cv2.RANSAC, prob=0.999, threshold=1.0
     )
@@ -125,6 +180,17 @@ def _rectify(
         cv2.remap(left_gray, map_left[0], map_left[1], cv2.INTER_LINEAR),
         cv2.remap(right_gray, map_right[0], map_right[1], cv2.INTER_LINEAR),
     )
+
+
+def normalize_relief(disparity: np.ndarray, valid: np.ndarray) -> np.ndarray:
+    """Scale valid disparities to 0 far .. 1 near, saturating outliers."""
+    measured = disparity[valid]
+    floor = float(np.percentile(measured, 1))
+    ceiling = float(np.percentile(measured, 99))
+    span = max(ceiling - floor, 1.0)
+    relief = np.full(disparity.shape, -1.0, dtype=np.float32)
+    relief[valid] = np.clip((disparity[valid] - floor) / span, 0.0, 1.0)
+    return relief
 
 
 def compute_depth(
@@ -162,17 +228,14 @@ def compute_depth(
         uniquenessRatio=active.stereo_uniqueness,
         speckleWindowSize=100,
         speckleRange=32,
-        mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY,
+        mode=cv2.STEREO_SGBM_MODE_SGBM,
     )
     disparity = matcher.compute(rect_left, rect_right).astype(np.float32) / 16.0
     valid = disparity > 0
     coverage = float(valid.mean())
     if coverage < 0.02:
         raise StereoError("Aucun relief mesurable : surface trop lisse ou vues trop proches.")
-    floor, ceiling = float(disparity[valid].min()), float(disparity[valid].max())
-    span = max(ceiling - floor, 1e-6)
-    relief = np.full(disparity.shape, -1.0, dtype=np.float32)
-    relief[valid] = (disparity[valid] - floor) / span
+    relief = normalize_relief(disparity, valid)
     height, width = relief.shape
     target_width = min(active.stereo_max_width, width)
     target_height = max(round(height * target_width / width), 1)
@@ -192,6 +255,7 @@ def compute_depth(
         coverage=round(coverage, 3),
         left_index=left_index,
         right_index=right_index,
+        method="stereo",
     )
 
 
