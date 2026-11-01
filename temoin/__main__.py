@@ -23,6 +23,7 @@ from temoin.meta_api import (
 from temoin.model import ModelError
 from temoin.monodepth import MonoDepthError, estimate_depth
 from temoin.qa import ask_question
+from temoin.relief import ReliefError, run_relief
 from temoin.report import create_report
 from temoin.seal import CertificateError, load_certificate, verify_certificate
 from temoin.stereo import (
@@ -101,6 +102,20 @@ def build_parser() -> argparse.ArgumentParser:
     mono.add_argument("--wiggle", default=None, help="Save the parallax GIF here.")
     mono.add_argument("--cloud", default=None, help="Save the 3D cloud HTML here.")
     mono.add_argument("--bbox", default=None, help="Defect box 0-1000, e.g. 400,400,600,600.")
+    relief = sub.add_parser("relief", help="Measure relief from raking-light photos.")
+    relief.add_argument("photos", nargs="+", help="4-8 photos, lamp at 12h, 3h, 6h, 9h first.")
+    relief.add_argument(
+        "--uncalibrated",
+        action="store_true",
+        help="Estimate lamp positions (Hayakawa SVD).",
+    )
+    relief.add_argument("--concept", default="object", help="Object to outline, e.g. headphones.")
+    relief.add_argument("--relief", default=None, help="Save the color relief map here.")
+    relief.add_argument("--normals", default=None, help="Save the normals image here.")
+    relief.add_argument("--json", default=None, help="Save the relief report here.")
+    relief.add_argument("--wiggle", default=None, help="Save the parallax GIF here.")
+    relief.add_argument("--cloud", default=None, help="Save the 3D cloud HTML here.")
+    relief.add_argument("--bbox", default=None, help="Defect box 0-1000, e.g. 400,400,600,600.")
     board = sub.add_parser("board", help="Render the evidence board of a sealed certificate.")
     board.add_argument("certificate", help="Path to a certificate file, e.g. cert-1.json.")
     board.add_argument("--sale", required=True, help="Path to the sale photo.")
@@ -337,6 +352,67 @@ def mono_depth_main(source: str, wiggle: str | None, cloud: str | None, bbox: st
     return 0
 
 
+def relief_main(
+    photos: list[str],
+    uncalibrated: bool,
+    concept: str,
+    relief_path: str | None,
+    normals_path: str | None,
+    json_path: str | None,
+    wiggle: str | None,
+    cloud: str | None,
+    bbox: str | None,
+) -> int:
+    """Measure raking-light relief, describe it and save the viewers."""
+    settings = load_settings()
+    analysis = run_relief(photos, settings=settings, concept=concept, uncalibrated=uncalibrated)
+    report = analysis.report
+    method = (
+        "lumière rasante non calibrée (Hayakawa)"
+        if uncalibrated
+        else "lumière rasante calibrée (12 h, 3 h, 6 h, 9 h)"
+    )
+    mask = "SAM 3.1" if report.mask_source == "sam" else "seuillage simple"
+    lines = [
+        f"Photos : {len(report.photo_sha256s)}",
+        f"Méthode : {method}.",
+        f"Masque : {mask}.",
+        f"Relief mesuré sur {report.coverage * 100:.0f} % du masque.",
+    ]
+    if report.flat and report.alert:
+        lines.append(f"Alerte : {report.alert}")
+    if report.description is not None:
+        lines.append(f"Lecture : {report.description.summary}")
+    lines.append(f"Calcul CPU : {report.compute_seconds:.2f} s.")
+    first = Path(photos[0])
+    relief_out = Path(relief_path) if relief_path else first.parent / (first.stem + "-relief.png")
+    normals_out = (
+        Path(normals_path) if normals_path else first.parent / (first.stem + "-normals.png")
+    )
+    try:
+        relief_out.parent.mkdir(parents=True, exist_ok=True)
+        analysis.relief_image.save(relief_out)
+        normals_out.parent.mkdir(parents=True, exist_ok=True)
+        analysis.normals_image.save(normals_out)
+    except OSError as error:
+        raise ImageError(f"Impossible d'écrire les cartes : « {relief_out} ».") from error
+    lines.append(f"Cartes : {relief_out} / {normals_out}")
+    if json_path:
+        json_out = Path(json_path)
+        try:
+            json_out.parent.mkdir(parents=True, exist_ok=True)
+            json_out.write_text(report.model_dump_json(indent=2), encoding="utf-8")
+        except OSError as error:
+            raise ImageError(f"Impossible d'écrire le rapport : « {json_out} ».") from error
+        lines.append(f"Rapport : {json_out}")
+    fallback = first.parent / (first.stem + "-relief.gif")
+    lines.extend(
+        _depth_output_lines(analysis.first, analysis.matrix, wiggle, cloud, bbox, fallback)
+    )
+    sys.stdout.write("\n".join(lines) + "\n")
+    return 0
+
+
 def board_main(certificate: str, sale: str, delivery: str, output: str | None) -> int:
     """Render the evidence board of an intact certificate and print its path."""
     certificate_data = load_certificate(certificate)
@@ -442,6 +518,18 @@ def main(argv: list[str] | None = None) -> int:
             return video_depth_main(args.video, args.wiggle, args.cloud, args.bbox, args.max_frames)
         elif args.command == "mono-depth":
             return mono_depth_main(args.source, args.wiggle, args.cloud, args.bbox)
+        elif args.command == "relief":
+            return relief_main(
+                args.photos,
+                args.uncalibrated,
+                args.concept,
+                args.relief,
+                args.normals,
+                args.json,
+                args.wiggle,
+                args.cloud,
+                args.bbox,
+            )
         elif args.command == "board":
             return board_main(args.certificate, args.sale, args.delivery, args.output)
         elif args.command == "ask":
@@ -456,6 +544,7 @@ def main(argv: list[str] | None = None) -> int:
         ModelError,
         MetaAPIError,
         MonoDepthError,
+        ReliefError,
         StereoError,
         VideoError,
     ) as error:

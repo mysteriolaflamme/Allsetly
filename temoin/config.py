@@ -57,6 +57,14 @@ class Settings:
     monodepth_model_sha256: str = "2d8c6cb8f415229daf1eb041024208e2608c9f98e17c81cc7c6ecb449c56fd58"
     monodepth_model_file: str = "models/midas-small.onnx"
     monodepth_input_size: int = 256
+    relief_max_width: int = 320
+    relief_min_photos: int = 4
+    relief_max_photos: int = 8
+    relief_light_elevation_deg: float = 45.0
+    # Calibrated on synthetics (sphere: 0.065/0.27, flat sheet: 0.0/0.0):
+    # a real object exceeds both, a screen photo or print stays near zero.
+    relief_flat_height_std: float = 0.03
+    relief_flat_normal_spread: float = 0.08
 
 
 def _read_streamlit_secrets() -> dict[str, str]:

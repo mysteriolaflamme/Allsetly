@@ -114,6 +114,9 @@ class Report(BaseModel):
     challenge: ChallengeCheck
     checkpoints: list[Checkpoint] = Field(default_factory=list)
     alerts: list[Alert] = Field(default_factory=list)
+    relief: ReliefReport | None = Field(
+        default=None, description="Raking-light relief attached to this constat, if any."
+    )
     image_sha256: str
     created_at_utc: datetime
     prompt_version: str
@@ -172,6 +175,55 @@ class DefectMatch(BaseModel):
         if self.status == "new" and not (delivery and not sale):
             raise ValueError("Status 'new' needs only a delivery defect id.")
         return self
+
+
+class ReliefFeature(BaseModel):
+    """One hollow or bump read on the raking-light relief map."""
+
+    id: str = Field(description="Stable identifier, e.g. R1.")
+    kind: Literal["hollow", "bump", "ridge", "groove", "other"] = Field(
+        description="Shape kind: hollow, bump, ridge, groove or other."
+    )
+    description: str = Field(description="Factual description of the shape.")
+    zone: str = Field(description="Readable position of the shape on the item.")
+    defect_id: str | None = Field(default=None, description="Linked constat defect id, if any.")
+
+
+class ReliefDescription(BaseModel):
+    """Model reading of the relief and normals maps."""
+
+    summary: str = Field(description="Short reading of hollows and bumps, in French.")
+    features: list[ReliefFeature] = Field(default_factory=list, max_length=12)
+    physical_presence: Literal["real", "flat_suspect"] = Field(
+        description="Real 3D object or flat suspect (screen photo, print)."
+    )
+    note: str = Field(default="", description="Caution or shooting advice, in French.")
+    citations: list[str] = Field(
+        default_factory=list,
+        max_length=12,
+        description="Linked constat defect ids, e.g. D1.",
+    )
+
+
+class ReliefReport(BaseModel):
+    """Sealed raking-light relief result attached to one constat."""
+
+    method: Literal["raking-calibrated", "raking-uncalibrated"]
+    photo_sha256s: list[str] = Field(description="Fingerprints of the raking-light photos.")
+    mask_source: Literal["sam", "threshold"] = Field(
+        description="Object mask origin: SAM 3.1 or simple threshold fallback."
+    )
+    coverage: Annotated[float, Field(ge=0, le=1)] = Field(
+        description="Share of masked pixels with measured relief."
+    )
+    height_std: float = Field(description="Spread of the normalized relief (0 flat).")
+    normal_spread: float = Field(description="Mean deviation of normals (0 uniform).")
+    flat: bool = Field(description="True when the relief looks like a flat picture.")
+    alert: str | None = Field(default=None, description="Physical-presence alert, if any.")
+    description: ReliefDescription | None = Field(default=None)
+    compute_seconds: float = Field(description="CPU compute time in seconds.")
+    created_at_utc: datetime
+    prompt_version: str
 
 
 class DevilObjection(BaseModel):

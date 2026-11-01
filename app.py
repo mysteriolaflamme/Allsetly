@@ -5,6 +5,7 @@ from __future__ import annotations
 import urllib.parse
 from pathlib import Path
 
+import plotly.io as plotly_io
 import streamlit as st
 from PIL import Image
 
@@ -19,8 +20,16 @@ from temoin.meta_api import MetaAPIError, draw_segmentation, segment_image, tran
 from temoin.model import ModelError
 from temoin.monodepth import MonoDepthError, estimate_depth
 from temoin.qa import ask_question
+from temoin.relief import ReliefError, run_relief
 from temoin.report import create_report
-from temoin.schemas import Certificate, Comparison, Report, TrailEntry, VideoReport
+from temoin.schemas import (
+    Certificate,
+    Comparison,
+    ReliefReport,
+    Report,
+    TrailEntry,
+    VideoReport,
+)
 from temoin.seal import verify_certificate, verify_chain
 from temoin.stereo import (
     StereoError,
@@ -624,6 +633,170 @@ def depth_flow(settings: Settings, lang: str) -> None:
     st.caption(t("depth_unknown", lang))
 
 
+def relief_flow(settings: Settings, lang: str) -> None:
+    """Run the raking-light relief flow: upload, measure, read, seal."""
+    st.info(t("relief_hint", lang))
+    done = st.session_state.pop("relief_done", None)
+    if done:
+        st.success(t("relief_attached", lang).format(side=done))
+    tx_id = st.text_input(
+        t("relief_tx_label", lang),
+        value=st.session_state.get("relief_tx_id", ""),
+        key="relief_tx",
+    )
+    side_label = st.radio(
+        t("relief_side", lang),
+        [t("board_sale", lang), t("board_delivery", lang)],
+        horizontal=True,
+        key="relief_side",
+    )
+    side = "sale" if side_label == t("board_sale", lang) else "delivery"
+    concept = st.text_input(
+        t("relief_concept", lang),
+        value=st.session_state.get("relief_concept", "object"),
+        key="relief_concept",
+    )
+    uploads = st.file_uploader(
+        t("relief_uploads", lang),
+        type=["jpg", "jpeg", "png", "webp"],
+        accept_multiple_files=True,
+        key="relief_uploads",
+    )
+    uncalibrated = st.checkbox(t("relief_uncalibrated", lang), key="relief_uncalibrated")
+    if st.button(t("relief_button", lang), key="relief_run"):
+        st.session_state.relief_tx_id = tx_id.strip()
+        st.session_state.relief_concept = concept.strip() or "object"
+        files = list(uploads or [])
+        if len(files) < settings.relief_min_photos or len(files) > settings.relief_max_photos:
+            st.warning(t("relief_need_photos", lang))
+            return
+        try:
+            tx = load_transaction(tx_id.strip(), settings)
+        except StorageError as error:
+            st.error(str(error))
+            return
+        constat = tx.sale_constat if side == "sale" else tx.delivery_constat
+        if constat is None:
+            st.warning(t("relief_no_constat", lang).format(side=side_label))
+            return
+        photo_dir = transaction_path(tx.id, settings) / "relief" / side
+        photo_dir.mkdir(parents=True, exist_ok=True)
+        paths = []
+        for number, upload in enumerate(files):
+            suffix = Path(upload.name).suffix.lower() or ".jpg"
+            target = photo_dir / f"rake-{number:02d}{suffix}"
+            target.write_bytes(upload.getvalue())
+            paths.append(target)
+        with st.spinner(t("relief_running", lang)):
+            try:
+                analysis = run_relief(
+                    paths,
+                    settings=settings,
+                    concept=st.session_state.relief_concept,
+                    uncalibrated=uncalibrated,
+                    defects=constat.defects,
+                )
+            except (ReliefError, ConfigError, ImageError, ModelError) as error:
+                st.error(str(error))
+                return
+        analysis.relief_image.save(photo_dir / "relief.png")
+        analysis.normals_image.save(photo_dir / "normals.png")
+        (photo_dir / "wiggle.gif").write_bytes(relief_wiggle(analysis.first, analysis.matrix))
+        (photo_dir / "cloud.json").write_text(
+            relief_cloud(analysis.first, analysis.matrix).to_json(), encoding="utf-8"
+        )
+        (photo_dir / "report.json").write_text(
+            analysis.report.model_dump_json(indent=2), encoding="utf-8"
+        )
+        st.session_state.relief_pending = {"tx": tx.id, "side": side, "side_label": side_label}
+        st.rerun()
+    pending = st.session_state.get("relief_pending")
+    if not pending:
+        return
+    try:
+        tx = load_transaction(pending["tx"], settings)
+    except StorageError as error:
+        st.error(str(error))
+        return
+    photo_dir = transaction_path(tx.id, settings) / "relief" / pending["side"]
+    report_file = photo_dir / "report.json"
+    if not report_file.is_file():
+        return
+    try:
+        relief_report = ReliefReport.model_validate_json(report_file.read_text(encoding="utf-8"))
+    except ValueError:
+        st.error(t("relief_invalid", lang))
+        return
+    st.success(t("relief_ok", lang).format(pct=round(relief_report.coverage * 100)))
+    method_key = (
+        "relief_method_uncalibrated"
+        if relief_report.method == "raking-uncalibrated"
+        else "relief_method_calibrated"
+    )
+    st.caption(t(method_key, lang))
+    mask_key = "relief_mask_sam" if relief_report.mask_source == "sam" else "relief_mask_threshold"
+    st.caption(t(mask_key, lang))
+    st.caption(t("relief_elapsed", lang).format(s=relief_report.compute_seconds))
+    if relief_report.flat:
+        st.error(t("relief_flat", lang))
+    st.subheader(t("relief_map", lang))
+    st.image(str(photo_dir / "relief.png"))
+    st.subheader(t("relief_normals", lang))
+    st.image(str(photo_dir / "normals.png"))
+    st.subheader(t("depth_wiggle", lang))
+    st.image(str(photo_dir / "wiggle.gif"))
+    st.subheader(t("depth_cloud", lang))
+    st.plotly_chart(
+        plotly_io.from_json((photo_dir / "cloud.json").read_text(encoding="utf-8")),
+        use_container_width=True,
+    )
+    description = relief_report.description
+    if description is not None:
+        st.subheader(t("relief_reading", lang))
+        st.write(description.summary)
+        if description.features:
+            st.table(
+                [
+                    {
+                        "ID": feature.id,
+                        t("relief_col_shape", lang): feature.kind,
+                        t("relief_col_zone", lang): feature.zone,
+                        t("relief_col_defect", lang): feature.defect_id or "—",
+                    }
+                    for feature in description.features
+                ]
+            )
+        else:
+            st.write(t("relief_features_none", lang))
+        if description.note:
+            st.caption(description.note)
+    current = tx.sale_constat if pending["side"] == "sale" else tx.delivery_constat
+    if current is not None and current.relief is not None:
+        st.caption(t("relief_already", lang))
+    if st.button(t("relief_attach", lang).format(side=pending["side_label"]), key="relief_attach"):
+        try:
+            fresh = load_transaction(pending["tx"], settings)
+        except StorageError as error:
+            st.error(str(error))
+            return
+        target = fresh.sale_constat if pending["side"] == "sale" else fresh.delivery_constat
+        if target is None:
+            st.warning(t("relief_no_constat", lang).format(side=pending["side_label"]))
+            return
+        try:
+            fresh = attach_constat(
+                fresh, pending["side"], target.model_copy(update={"relief": relief_report})
+            )
+        except StorageError as error:
+            st.error(str(error))
+            return
+        save_transaction(fresh, settings)
+        st.session_state.pop("relief_pending", None)
+        st.session_state.relief_done = pending["side_label"]
+        st.rerun()
+    st.caption(t("relief_seal_note", lang))
+
+
 st.set_page_config(page_title="Témoin", layout="centered")
 
 choice = st.sidebar.radio("Langue / Language", ["Français", "English"])
@@ -639,13 +812,14 @@ except ConfigError as error:
     st.error(str(error))
     st.stop()
 
-sale_tab, delivery_tab, verify_tab, video_tab, depth_tab = st.tabs(
+sale_tab, delivery_tab, verify_tab, video_tab, depth_tab, relief_tab = st.tabs(
     [
         t("tab_sale", lang),
         t("tab_delivery", lang),
         t("tab_verify", lang),
         t("tab_video", lang),
         t("tab_depth", lang),
+        t("tab_relief", lang),
     ]
 )
 with sale_tab:
@@ -658,3 +832,5 @@ with video_tab:
     video_flow(settings, lang)
 with depth_tab:
     depth_flow(settings, lang)
+with relief_tab:
+    relief_flow(settings, lang)

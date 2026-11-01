@@ -24,8 +24,8 @@ def test_app_boots_in_french_and_english() -> None:
     assert app.title[0].value == "Témoin — neutral visual witness"
 
 
-def test_app_has_five_tabs() -> None:
-    """Sale, Delivery, Verify, Video and Depth tabs are present."""
+def test_app_has_six_tabs() -> None:
+    """Sale, Delivery, Verify, Video, Depth and Relief tabs are present."""
     app = _run_app()
     assert [tab.label for tab in app.tabs] == [
         "Vente",
@@ -33,4 +33,5 @@ def test_app_has_five_tabs() -> None:
         "Vérifier",
         "Vidéo",
         "Profondeur",
+        "Relief",
     ]

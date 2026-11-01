@@ -332,6 +332,35 @@ def test_parser_video_depth_arguments() -> None:
     assert (args.wiggle, args.cloud) == (None, None)
 
 
+def test_parser_relief_arguments() -> None:
+    """relief with photos, mode and viewers parses correctly."""
+    args = build_parser().parse_args(
+        [
+            "relief",
+            "a.jpg",
+            "b.jpg",
+            "c.jpg",
+            "d.jpg",
+            "--uncalibrated",
+            "--concept",
+            "vase",
+            "--json",
+            "r.json",
+        ]
+    )
+    assert args.command == "relief"
+    assert args.photos == ["a.jpg", "b.jpg", "c.jpg", "d.jpg"]
+    assert args.uncalibrated is True
+    assert (args.concept, args.json) == ("vase", "r.json")
+    assert (args.relief, args.normals, args.wiggle, args.cloud, args.bbox) == (
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
+
+
 def test_parser_mono_depth_arguments() -> None:
     """mono-depth with a source, viewers and a box parses correctly."""
     args = build_parser().parse_args(

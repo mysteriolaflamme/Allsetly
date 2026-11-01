@@ -319,6 +319,93 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "ask_running": {"fr": "Recherche dans le dossier…", "en": "Searching the case…"},
     "ask_sources": {"fr": "Sources", "en": "Sources"},
+    "tab_relief": {"fr": "Relief", "en": "Relief"},
+    "relief_hint": {
+        "fr": (
+            "Téléphone immobile, une seule lampe déplacée "
+            "à 12 h, 3 h, 6 h puis 9 h (environ 45° de hauteur)."
+        ),
+        "en": "Still phone, one lamp moved to 12, 3, 6 then 9 o'clock (about 45° high).",
+    },
+    "relief_tx_label": {"fr": "Identifiant du dossier", "en": "Case identifier"},
+    "relief_side": {"fr": "Constat à enrichir", "en": "Constat to enrich"},
+    "relief_concept": {
+        "fr": "Objet à détourer, en anglais (ex. headphones)",
+        "en": "Object to outline (e.g. headphones)",
+    },
+    "relief_uploads": {
+        "fr": "Photos en lumière rasante, dans l'ordre 12 h, 3 h, 6 h, 9 h (4 à 8)",
+        "en": "Raking-light photos, in 12, 3, 6, 9 o'clock order (4 to 8)",
+    },
+    "relief_uncalibrated": {
+        "fr": "Positions de lampe inconnues (mode non calibré)",
+        "en": "Unknown lamp positions (uncalibrated mode)",
+    },
+    "relief_button": {"fr": "Mesurer le relief", "en": "Measure the relief"},
+    "relief_running": {"fr": "Mesure du relief en cours…", "en": "Measuring relief…"},
+    "relief_need_photos": {
+        "fr": "Déposez 4 à 8 photos du même objet.",
+        "en": "Drop 4 to 8 photos of the same item.",
+    },
+    "relief_no_constat": {
+        "fr": "Ce dossier n'a pas encore de constat {side}.",
+        "en": "This case has no {side} constat yet.",
+    },
+    "relief_elapsed": {"fr": "Calcul CPU : {s} s.", "en": "CPU compute: {s} s."},
+    "relief_method_calibrated": {
+        "fr": "Méthode : lumière rasante calibrée (12 h, 3 h, 6 h, 9 h).",
+        "en": "Method: calibrated raking light (12, 3, 6, 9 o'clock).",
+    },
+    "relief_method_uncalibrated": {
+        "fr": "Méthode : lumière rasante non calibrée (Hayakawa).",
+        "en": "Method: uncalibrated raking light (Hayakawa).",
+    },
+    "relief_mask_sam": {"fr": "Masque : SAM 3.1.", "en": "Mask: SAM 3.1."},
+    "relief_mask_threshold": {
+        "fr": "Masque : seuillage simple (SAM indisponible).",
+        "en": "Mask: plain threshold (SAM unavailable).",
+    },
+    "relief_ok": {
+        "fr": "Relief mesuré sur {pct} % du masque.",
+        "en": "Relief measured on {pct}% of the mask.",
+    },
+    "relief_flat": {
+        "fr": "RELIEF PLAT — possible photo d'écran ou impression.",
+        "en": "FLAT RELIEF — possible screen photo or print.",
+    },
+    "relief_map": {
+        "fr": "Carte de relief (bleu : creux, rouge : bosses)",
+        "en": "Relief map (blue: hollows, red: bumps)",
+    },
+    "relief_normals": {"fr": "Carte des normales", "en": "Normals map"},
+    "relief_reading": {"fr": "Lecture du relief", "en": "Relief reading"},
+    "relief_features_none": {
+        "fr": "Aucun creux ni bosse décrit.",
+        "en": "No hollows or bumps described.",
+    },
+    "relief_col_shape": {"fr": "Forme", "en": "Shape"},
+    "relief_col_zone": {"fr": "Zone", "en": "Zone"},
+    "relief_col_defect": {"fr": "Défaut lié", "en": "Linked flaw"},
+    "relief_attach": {
+        "fr": "Sceller dans le constat {side}",
+        "en": "Seal into the {side} constat",
+    },
+    "relief_attached": {
+        "fr": "Relief scellé dans le constat {side}.",
+        "en": "Relief sealed into the {side} constat.",
+    },
+    "relief_seal_note": {
+        "fr": "Le relief rejoint le constat ; il sera couvert par le sceau du prochain certificat.",
+        "en": "The relief joins the constat; it will be covered by the next certificate seal.",
+    },
+    "relief_already": {
+        "fr": "Ce constat contient déjà un relief (relancez pour le remplacer).",
+        "en": "This constat already holds a relief (run again to replace it).",
+    },
+    "relief_invalid": {
+        "fr": "Rapport de relief illisible : relancez la mesure.",
+        "en": "Unreadable relief report: run the measurement again.",
+    },
 }
 
 VERDICTS: dict[str, dict[str, str]] = {
