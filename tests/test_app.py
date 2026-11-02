@@ -9,7 +9,7 @@ from streamlit.testing.v1 import AppTest
 
 def _run_app() -> AppTest:
     """Boot the app in French."""
-    app = AppTest.from_file(Path(__file__).parent.parent / "app.py")
+    app = AppTest.from_file(Path(__file__).parent.parent / "app.py", default_timeout=30)
     app.run()
     assert not app.exception
     return app
@@ -35,3 +35,24 @@ def test_app_has_six_tabs() -> None:
         "Profondeur",
         "Relief",
     ]
+
+
+def test_case_pickers_replace_free_text_ids() -> None:
+    """Delivery, Verify and Relief offer a case list, with a manual-entry option."""
+    app = _run_app()
+    labels = [box.label for box in app.selectbox]
+    assert "Identifiant du dossier" in labels
+    assert "Identifiant du dossier à vérifier" in labels
+    for box in app.selectbox:
+        if box.label.startswith("Identifiant du dossier"):
+            assert box.options[-1] == "Saisir un identifiant (lien reçu)…"
+
+
+def test_typing_a_challenge_code_as_case_id_warns() -> None:
+    """A 2-character challenge code typed as a case id gets a clear warning."""
+    app = _run_app()
+    picker = next(box for box in app.selectbox if box.key == "del_case")
+    picker.set_value("__manual__").run()
+    app.text_input(key="del_case_manual").set_value("K4").run()
+    assert not app.exception
+    assert any("Ceci est un code défi" in warning.value for warning in app.warning)

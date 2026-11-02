@@ -5,7 +5,11 @@ from __future__ import annotations
 import urllib.parse
 from pathlib import Path
 
-import plotly.io as plotly_io
+try:
+    import plotly.io as plotly_io
+except ImportError:  # pragma: no cover - optional dependency
+    plotly_io = None  # type: ignore[assignment]
+
 import streamlit as st
 from PIL import Image
 
@@ -28,6 +32,7 @@ from temoin.schemas import (
     ReliefReport,
     Report,
     TrailEntry,
+    Transaction,
     VideoReport,
 )
 from temoin.seal import verify_certificate, verify_chain
@@ -44,6 +49,7 @@ from temoin.storage import (
     attach_constat,
     create_transaction,
     issue_delivery_code,
+    list_transactions,
     load_transaction,
     save_transaction,
     seal_comparison_in_transaction,
@@ -282,9 +288,51 @@ def sale_flow(settings: Settings, lang: str) -> None:
         st.write(f"« {tx.sale_voice_declaration} »")
 
 
+_MANUAL_CASE = "__manual__"
+
+
+def case_label(tx: Transaction, lang: str) -> str:
+    """Describe a case for the picker: id, local date/time, short item description."""
+    when = tx.created_at_utc.astimezone().strftime("%d/%m %H:%M")
+    constat = tx.sale_constat or tx.delivery_constat
+    about = constat.description if constat else t("case_no_description", lang)
+    if len(about) > 50:
+        about = about[:49] + "…"
+    return f"{tx.id} · {when} · {about}"
+
+
+def looks_like_challenge_code(raw: str, settings: Settings) -> bool:
+    """True when the text is a challenge code typed where a case id was expected."""
+    value = raw.strip()
+    return len(value) == settings.challenge_code_length and not value.startswith("tx-")
+
+
+def pick_case(settings: Settings, lang: str, *, label_key: str, key: str) -> str:
+    """Let the user pick a case from a list (or type one); return its id or ''."""
+    cases = list_transactions(settings)
+    labels = {tx.id: case_label(tx, lang) for tx in cases}
+    options = [*labels, _MANUAL_CASE]
+    preferred = st.session_state.get("sale_tx_id") or st.session_state.get("del_tx_id")
+    index = options.index(preferred) if preferred in labels else 0
+    choice = st.selectbox(
+        t(label_key, lang),
+        options,
+        index=index,
+        format_func=lambda option: labels.get(option, t("case_manual", lang)),
+        key=key,
+    )
+    if choice != _MANUAL_CASE:
+        return choice
+    raw = st.text_input(t("case_manual_input", lang), key=f"{key}_manual").strip()
+    if looks_like_challenge_code(raw, settings):
+        st.warning(t("case_is_code", lang))
+        return ""
+    return raw
+
+
 def delivery_flow(settings: Settings, lang: str) -> None:
     """Run the buyer flow: load case, code, photo, investigation, seal."""
-    tx_id = st.text_input(t("del_tx_label", lang), value=st.session_state.get("del_tx_id", ""))
+    tx_id = pick_case(settings, lang, label_key="del_tx_label", key="del_case")
     if st.button(t("del_load", lang)):
         st.session_state.del_tx_id = tx_id.strip()
         st.rerun()
@@ -451,7 +499,7 @@ def verify_flow(settings: Settings, lang: str) -> None:
             else:
                 show_verify_result(certificate, lang)
     st.subheader(t("ver_chain_title", lang))
-    chain_id = st.text_input(t("ver_tx_label", lang))
+    chain_id = pick_case(settings, lang, label_key="ver_tx_label", key="ver_case")
     if st.button(t("ver_chain_check", lang)):
         try:
             tx = load_transaction(chain_id.strip(), settings)
@@ -629,7 +677,12 @@ def depth_flow(settings: Settings, lang: str) -> None:
     st.subheader(t("depth_wiggle", lang))
     st.image(relief_wiggle(left, matrix))
     st.subheader(t("depth_cloud", lang))
-    st.plotly_chart(relief_cloud(left, matrix), use_container_width=True)
+    try:
+        figure = relief_cloud(left, matrix)
+    except StereoError as error:
+        st.warning(str(error))
+    else:
+        st.plotly_chart(figure, use_container_width=True)
     st.caption(t("depth_unknown", lang))
 
 
@@ -639,11 +692,7 @@ def relief_flow(settings: Settings, lang: str) -> None:
     done = st.session_state.pop("relief_done", None)
     if done:
         st.success(t("relief_attached", lang).format(side=done))
-    tx_id = st.text_input(
-        t("relief_tx_label", lang),
-        value=st.session_state.get("relief_tx_id", ""),
-        key="relief_tx",
-    )
+    tx_id = pick_case(settings, lang, label_key="relief_tx_label", key="relief_tx")
     side_label = st.radio(
         t("relief_side", lang),
         [t("board_sale", lang), t("board_delivery", lang)],
@@ -665,7 +714,6 @@ def relief_flow(settings: Settings, lang: str) -> None:
     uncalibrated = st.checkbox(t("relief_uncalibrated", lang), key="relief_uncalibrated")
     if st.button(t("relief_button", lang), key="relief_run"):
         st.session_state.relief_tx_id = tx_id.strip()
-        st.session_state.relief_concept = concept.strip() or "object"
         files = list(uploads or [])
         if len(files) < settings.relief_min_photos or len(files) > settings.relief_max_photos:
             st.warning(t("relief_need_photos", lang))
@@ -692,22 +740,26 @@ def relief_flow(settings: Settings, lang: str) -> None:
                 analysis = run_relief(
                     paths,
                     settings=settings,
-                    concept=st.session_state.relief_concept,
+                    concept=concept.strip() or "object",
                     uncalibrated=uncalibrated,
                     defects=constat.defects,
                 )
             except (ReliefError, ConfigError, ImageError, ModelError) as error:
                 st.error(str(error))
                 return
-        analysis.relief_image.save(photo_dir / "relief.png")
-        analysis.normals_image.save(photo_dir / "normals.png")
-        (photo_dir / "wiggle.gif").write_bytes(relief_wiggle(analysis.first, analysis.matrix))
-        (photo_dir / "cloud.json").write_text(
-            relief_cloud(analysis.first, analysis.matrix).to_json(), encoding="utf-8"
-        )
-        (photo_dir / "report.json").write_text(
-            analysis.report.model_dump_json(indent=2), encoding="utf-8"
-        )
+        try:
+            analysis.relief_image.save(photo_dir / "relief.png")
+            analysis.normals_image.save(photo_dir / "normals.png")
+            (photo_dir / "wiggle.gif").write_bytes(relief_wiggle(analysis.first, analysis.matrix))
+            (photo_dir / "cloud.json").write_text(
+                relief_cloud(analysis.first, analysis.matrix).to_json(), encoding="utf-8"
+            )
+            (photo_dir / "report.json").write_text(
+                analysis.report.model_dump_json(indent=2), encoding="utf-8"
+            )
+        except StereoError as error:
+            st.error(str(error))
+            return
         st.session_state.relief_pending = {"tx": tx.id, "side": side, "side_label": side_label}
         st.rerun()
     pending = st.session_state.get("relief_pending")
@@ -746,10 +798,13 @@ def relief_flow(settings: Settings, lang: str) -> None:
     st.subheader(t("depth_wiggle", lang))
     st.image(str(photo_dir / "wiggle.gif"))
     st.subheader(t("depth_cloud", lang))
-    st.plotly_chart(
-        plotly_io.from_json((photo_dir / "cloud.json").read_text(encoding="utf-8")),
-        use_container_width=True,
-    )
+    if plotly_io is None:
+        st.info(t("cloud_unavailable", lang))
+    else:
+        st.plotly_chart(
+            plotly_io.from_json((photo_dir / "cloud.json").read_text(encoding="utf-8")),
+            use_container_width=True,
+        )
     description = relief_report.description
     if description is not None:
         st.subheader(t("relief_reading", lang))

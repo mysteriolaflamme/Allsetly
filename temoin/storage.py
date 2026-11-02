@@ -121,6 +121,22 @@ def load_transaction(tx_id: str, settings: Settings) -> Transaction:
         raise StorageError(f"Transaction illisible : « {tx_id} ».") from error
 
 
+def list_transactions(settings: Settings) -> list[Transaction]:
+    """Return every readable transaction, most recent first (unreadable ones skipped)."""
+    root = settings.data_dir / "transactions"
+    if not root.is_dir():
+        return []
+    found: list[Transaction] = []
+    for directory in root.iterdir():
+        if not (directory / "transaction.json").is_file():
+            continue
+        try:
+            found.append(load_transaction(directory.name, settings))
+        except StorageError:
+            continue
+    return sorted(found, key=lambda tx: tx.created_at_utc, reverse=True)
+
+
 def delete_transaction(tx_id: str, settings: Settings) -> None:
     """Delete a transaction directory (GDPR: right to erasure)."""
     directory = transaction_path(tx_id, settings)

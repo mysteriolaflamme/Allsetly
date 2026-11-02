@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,7 @@ from temoin.storage import (
     create_transaction,
     delete_transaction,
     issue_delivery_code,
+    list_transactions,
     load_transaction,
     save_transaction,
     seal_comparison_in_transaction,
@@ -154,3 +156,19 @@ def test_delete_transaction(storage_settings: Settings) -> None:
         load_transaction(tx.id, storage_settings)
     with pytest.raises(StorageError, match="introuvable"):
         delete_transaction(tx.id, storage_settings)
+
+
+def test_list_transactions_newest_first_and_skips_unreadable(
+    storage_settings: Settings,
+) -> None:
+    """Cases are listed most recent first; a corrupt case is ignored."""
+    assert list_transactions(storage_settings) == []
+    older = create_transaction(storage_settings)
+    newer = create_transaction(storage_settings)
+    older.created_at_utc = newer.created_at_utc - timedelta(hours=1)
+    save_transaction(newer, storage_settings)
+    save_transaction(older, storage_settings)
+    broken = storage_settings.data_dir / "transactions" / "tx-deadbeef"
+    broken.mkdir(parents=True)
+    (broken / "transaction.json").write_text("{not json", encoding="utf-8")
+    assert [tx.id for tx in list_transactions(storage_settings)] == [newer.id, older.id]

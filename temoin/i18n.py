@@ -279,6 +279,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Zones sans relief mesuré : laissées vides, jamais inventées.",
         "en": "Unmeasured zones: left empty, never invented.",
     },
+    "cloud_unavailable": {
+        "fr": "Nuage 3D indisponible : le module Plotly n'est pas installé ici.",
+        "en": "3D cloud unavailable: the Plotly module is not installed here.",
+    },
     "depth_method": {"fr": "Méthode", "en": "Method"},
     "depth_method_stereo": {"fr": "Stéréo mesurée (2 vues)", "en": "Measured stereo (2 views)"},
     "depth_method_mono": {"fr": "IA monoculaire (1 vue)", "en": "Monocular AI (1 view)"},
@@ -328,6 +332,25 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Still phone, one lamp moved to 12, 3, 6 then 9 o'clock (about 45° high).",
     },
     "relief_tx_label": {"fr": "Identifiant du dossier", "en": "Case identifier"},
+    "case_manual": {
+        "fr": "Saisir un identifiant (lien reçu)…",
+        "en": "Enter an identifier (received link)…",
+    },
+    "case_manual_input": {
+        "fr": "Identifiant du dossier (ex. tx-1a2b3c4d)",
+        "en": "Case identifier (e.g. tx-1a2b3c4d)",
+    },
+    "case_no_description": {
+        "fr": "objet pas encore photographié",
+        "en": "item not photographed yet",
+    },
+    "case_is_code": {
+        "fr": (
+            "Ceci est un code défi, pas un identifiant de dossier. "
+            "Choisissez le dossier dans la liste."
+        ),
+        "en": "This is a challenge code, not a case identifier. Pick the case from the list.",
+    },
     "relief_side": {"fr": "Constat à enrichir", "en": "Constat to enrich"},
     "relief_concept": {
         "fr": "Objet à détourer, en anglais (ex. headphones)",
