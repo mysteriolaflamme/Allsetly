@@ -23,9 +23,7 @@ def test_video_needs_opencv(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
     """extract_frames explains the missing OpenCV instead of crashing."""
     monkeypatch.setattr(video, "cv2", None)
     with pytest.raises(VideoError, match="OpenCV"):
-        video.extract_frames(
-            tmp_path / "tour.mp4", max_frames=2, max_pixels=64, max_megabytes=200
-        )
+        video.extract_frames(tmp_path / "tour.mp4", max_frames=2, max_pixels=64, max_megabytes=200)
 
 
 def test_stereo_compute_needs_vision(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -71,9 +69,7 @@ def test_segmentation_needs_parser(
     """SAM segmentation explains the missing parser instead of crashing."""
     monkeypatch.setattr(meta_api, "parse_responses_stream", None)
     with pytest.raises(MetaAPIError, match="meta-sam-parser"):
-        meta_api.segment_image(
-            "data:image/jpeg;base64,xx", "headphones", settings=test_settings
-        )
+        meta_api.segment_image("data:image/jpeg;base64,xx", "headphones", settings=test_settings)
 
 
 def test_relief_needs_numpy(monkeypatch: pytest.MonkeyPatch, test_settings: Settings) -> None:
@@ -97,7 +93,7 @@ def test_app_boots_without_heavy_modules() -> None:
         "app = AppTest.from_file('app.py')\n"
         "app.run()\n"
         "assert not app.exception, app.exception\n"
-        "assert len(app.tabs) == 6\n"
+        "assert len(app.tabs) == 4\n"
     )
     completed = subprocess.run(
         [sys.executable, "-c", script],
