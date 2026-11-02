@@ -21,3 +21,12 @@ data/
 
 # Evaluation intermediates (RESULTS.md is published)
 eval/results/
+
+# Local working files (never committed): scratch notes, ad-hoc root media
+# (eval pairs live in eval/pairs/), local depth/relief photo sets.
+/regarde.txt
+/*.wav
+/*.jpg
+/nouvelles_paires/
+/relief_casque/
+/relief_ecran/

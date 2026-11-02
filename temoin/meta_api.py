@@ -26,13 +26,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from meta_sam_parser import (
-    ImageSegmentationResult,
-    decode_mask_to_raster,
-    image_segmentation_format,
-    parse_responses_stream,
-)
-from openai import AsyncOpenAI
+try:
+    from meta_sam_parser import (
+        ImageSegmentationResult,
+        decode_mask_to_raster,
+        image_segmentation_format,
+        parse_responses_stream,
+    )
+except ImportError:  # pragma: no cover - optional dependency
+    ImageSegmentationResult = None  # type: ignore[assignment]
+    decode_mask_to_raster = None  # type: ignore[assignment]
+    image_segmentation_format = None  # type: ignore[assignment]
+    parse_responses_stream = None  # type: ignore[assignment]
+
 from PIL import Image, ImageDraw
 
 from temoin.config import Settings, load_settings
@@ -61,6 +67,14 @@ VoiceTransport = Callable[[bytes, str, dict[str, Any]], dict[str, Any]]
 
 class MetaAPIError(Exception):
     """Raised when a Meta Model API call fails, with a plain-language message."""
+
+
+def _require_sam_parser() -> None:
+    """Raise a plain-language error when the SAM parser is not installed."""
+    if parse_responses_stream is None:
+        raise MetaAPIError(
+            "La segmentation demande le module meta-sam-parser, qui n'est pas installé ici."
+        )
 
 
 @dataclass(frozen=True)
@@ -134,6 +148,12 @@ async def _collect_live_events(
     *, api_key: str, base_url: str, image_data_url: str, concept: str
 ) -> list[dict[str, Any]]:
     """Stream the Responses API and return plain JSON event dicts."""
+    try:
+        from openai import AsyncOpenAI
+    except ImportError as error:
+        raise MetaAPIError(
+            "La segmentation demande le module openai, qui n'est pas installé ici."
+        ) from error
     client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=SAM_TIMEOUT_SECONDS)
     async with client:
         stream = await client.responses.create(
@@ -232,6 +252,7 @@ def segment_image(
         raise MetaAPIError("Donnez le nom de l'objet à détourer (par exemple « casque »).")
     if not image_data_url.startswith("data:image/"):
         raise MetaAPIError("La photo fournie pour la segmentation est invalide.")
+    _require_sam_parser()
     active = settings or load_settings()
     api_key = _meta_key(active)
     try:

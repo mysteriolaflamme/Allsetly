@@ -1,5 +1,7 @@
 # Témoin — neutral visual witness for remote second-hand trade
 
+> History note: the 2 commits dated October 26 contain only a starter README — all code was written on October 27 or later, during the hackathon.
+
 Témoin recognizes a used item by its visible flaws — like a fingerprint — and
 produces a sealed constat proving the delivered (or returned) item is the one
 that was sold. It is not an image describer: a verifiable investigator agent

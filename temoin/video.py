@@ -8,7 +8,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-import cv2
+try:
+    import cv2
+except ImportError:  # pragma: no cover - optional dependency
+    cv2 = None  # type: ignore[assignment]
+
 from PIL import Image
 
 from temoin.config import Settings, load_settings
@@ -37,6 +41,12 @@ _SEVERITY_RANK = {"minor": 0, "moderate": 1, "major": 2}
 
 class VideoError(Exception):
     """Raised when a video cannot be used, with a plain-language message."""
+
+
+def _require_cv2() -> None:
+    """Raise a plain-language error when OpenCV is not installed."""
+    if cv2 is None:
+        raise VideoError("La lecture vidéo demande OpenCV, qui n'est pas installé ici.")
 
 
 @dataclass(frozen=True)
@@ -75,6 +85,7 @@ def extract_frames(
     path: str | Path, *, max_frames: int, max_pixels: int, max_megabytes: float
 ) -> list[VideoFrame]:
     """Validate a video and sample evenly spaced frames as RGB images."""
+    _require_cv2()
     source = Path(path)
     if not source.is_file():
         raise VideoError(f"Vidéo introuvable : « {source} ». Vérifiez le nom du fichier.")
@@ -121,6 +132,7 @@ def extract_frames(
 
 def _to_pil(frame: object, max_pixels: int) -> Image.Image:
     """Convert an OpenCV BGR frame to a resized RGB image."""
+    _require_cv2()
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # type: ignore[arg-type]
     image = Image.fromarray(rgb)
     image.thumbnail((max_pixels, max_pixels), Image.LANCZOS)

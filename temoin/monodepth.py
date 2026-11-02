@@ -12,8 +12,16 @@ import logging
 import urllib.request
 from pathlib import Path
 
-import cv2
-import numpy as np
+try:
+    import cv2
+except ImportError:  # pragma: no cover - optional dependency
+    cv2 = None  # type: ignore[assignment]
+
+try:
+    import numpy as np
+except ImportError:  # pragma: no cover - optional dependency
+    np = None  # type: ignore[assignment]
+
 from PIL import Image
 
 from temoin.config import Settings, load_settings
@@ -28,6 +36,12 @@ _PAD_GRAY = 114
 
 class MonoDepthError(Exception):
     """Raised when AI relief cannot be produced, with a plain-language message."""
+
+
+def _require_vision() -> None:
+    """Raise a plain-language error when OpenCV or NumPy is not installed."""
+    if cv2 is None or np is None:
+        raise MonoDepthError("Le relief IA demande OpenCV et NumPy, qui ne sont pas installés ici.")
 
 
 def _sha256_ok(path: Path, expected: str) -> bool:
@@ -79,6 +93,7 @@ def estimate_depth(
     image: Image.Image, *, settings: Settings | None = None, net: cv2.dnn.Net | None = None
 ) -> DepthMatrix:
     """Estimate dense relative relief (0 far .. 1 near) from a single view."""
+    _require_vision()
     active = settings or load_settings()
     network = net if net is not None else cv2.dnn.readNetFromONNX(str(model_path(active)))
     width, height = image.size

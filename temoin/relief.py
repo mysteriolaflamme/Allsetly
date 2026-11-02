@@ -23,7 +23,11 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Literal
 
-import numpy as np
+try:
+    import numpy as np
+except ImportError:  # pragma: no cover - optional dependency
+    np = None  # type: ignore[assignment]
+
 from PIL import Image
 
 from temoin.config import Settings, load_settings
@@ -63,6 +67,12 @@ class ReliefError(Exception):
     """Raised when relief cannot be measured, with a plain-language message."""
 
 
+def _require_numpy() -> None:
+    """Raise a plain-language error when NumPy is not installed."""
+    if np is None:
+        raise ReliefError("Le relief demande NumPy, qui n'est pas installé ici.")
+
+
 @dataclass(frozen=True)
 class ReliefMaps:
     """Measured relief arrays with their quality metrics (CPU, NumPy)."""
@@ -93,6 +103,7 @@ class ReliefAnalysis:
 
 def light_directions(count: int, *, elevation_deg: float = 45.0) -> np.ndarray:
     """Return count unit light vectors (x right, y down, z toward viewer)."""
+    _require_numpy()
     if count < _MIN_ACTIVE_LIGHTS or count > len(CLOCK_POSITIONS):
         raise ReliefError(f"Il faut {3} à {len(CLOCK_POSITIONS)} positions de lampe.")
     elevation = math.radians(elevation_deg)
@@ -162,6 +173,7 @@ def _sam_union_mask(segmentation: Segmentation, size: tuple[int, int]) -> np.nda
 
 def otsu_threshold(gray: np.ndarray) -> float:
     """Split a 0..1 grayscale image with Otsu's method (pure NumPy)."""
+    _require_numpy()
     hist = np.histogram(gray, bins=256, range=(0.0, 1.0))[0].astype(np.float64)
     centers = (np.arange(256) + 0.5) / 256.0
     weight_back = np.cumsum(hist)
@@ -176,6 +188,7 @@ def otsu_threshold(gray: np.ndarray) -> float:
 
 def threshold_mask(image: Image.Image) -> np.ndarray:
     """Split object from background: Otsu, the background touches the frame."""
+    _require_numpy()
     gray = np.asarray(image.convert("L"), dtype=np.float64) / 255.0
     level = otsu_threshold(gray)
     dark, bright = gray < level, gray >= level
@@ -208,6 +221,7 @@ def object_mask(
     settings: Settings | None = None,
 ) -> tuple[np.ndarray, Literal["sam", "threshold"]]:
     """Mask the object with SAM 3.1, falling back to a plain threshold."""
+    _require_numpy()
     active = settings or load_settings()
     try:
         segmentation = segment_image(first_data_url, concept.strip() or "object", settings=active)
@@ -230,6 +244,7 @@ def photometric_stereo(
     grays: np.ndarray, lights: np.ndarray, mask: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Least-squares normals + albedo with shadow-aware weights (vectorized)."""
+    _require_numpy()
     count, height, width = grays.shape
     if lights.shape != (count, _MIN_ACTIVE_LIGHTS):
         raise ReliefError("Les photos et les positions de lampe ne correspondent pas.")
@@ -274,6 +289,7 @@ def estimate_lights_hayakawa(grays: np.ndarray, mask: np.ndarray) -> np.ndarray:
     Returns (n, 3) unit vectors, up to a bas-relief ambiguity: fine for an
     imprint, not for metrology. Raises ReliefError when rank < 3.
     """
+    _require_numpy()
     count = grays.shape[0]
     rows = grays.reshape(count, -1).T[mask.reshape(-1)]
     # Shadows break the rank-3 model: keep pixels lit by every lamp.
@@ -372,6 +388,7 @@ def _rotation_to_view(direction: np.ndarray) -> np.ndarray:
 
 def frankot_chellappa(normals: np.ndarray, valid: np.ndarray) -> np.ndarray:
     """Integrate normals into a height map with the Frankot-Chellappa FFT."""
+    _require_numpy()
     height, width = valid.shape
     slope_x = np.zeros((height, width))
     slope_y = np.zeros((height, width))
@@ -390,6 +407,7 @@ def frankot_chellappa(normals: np.ndarray, valid: np.ndarray) -> np.ndarray:
 
 def normalize_height(height: np.ndarray, valid: np.ndarray) -> np.ndarray:
     """Scale valid heights to 0 far .. 1 near, saturating outliers (-1 out)."""
+    _require_numpy()
     relief = np.full(height.shape, -1.0, dtype=np.float32)
     if not valid.any():
         return relief
@@ -403,6 +421,7 @@ def normalize_height(height: np.ndarray, valid: np.ndarray) -> np.ndarray:
 
 def normal_spread(normals: np.ndarray, valid: np.ndarray) -> float:
     """Mean deviation of valid normals from their mean direction (0 uniform)."""
+    _require_numpy()
     picked = normals[valid]
     mean = picked.mean(axis=0)
     norm = float(np.linalg.norm(mean))
@@ -421,6 +440,7 @@ def compute_relief(
     settings: Settings | None = None,
 ) -> ReliefMaps:
     """Run the full CPU pipeline: stereo, integration, metrics (timed)."""
+    _require_numpy()
     active = settings or load_settings()
     start = time.perf_counter()
     grays = _to_grays(images)
@@ -477,6 +497,7 @@ _RELIEF_STOPS: tuple[tuple[float, tuple[int, int, int]], ...] = (
 
 def colorize_relief(height: np.ndarray) -> Image.Image:
     """Paint relief blue (hollows) to red (bumps), dark gray when unknown."""
+    _require_numpy()
     rgb = np.full((*height.shape, 3), _UNKNOWN_GRAY, dtype=np.uint8)
     known = height >= 0
     if known.any():
@@ -492,6 +513,7 @@ def colorize_relief(height: np.ndarray) -> Image.Image:
 
 def normals_image(normals: np.ndarray, valid: np.ndarray) -> Image.Image:
     """Encode normals as RGB (x red, y green, z blue), black when unknown."""
+    _require_numpy()
     rgb = np.zeros((*valid.shape, 3), dtype=np.uint8)
     rgb[valid] = (np.clip(normals[valid] * 0.5 + 0.5, 0.0, 1.0) * 255).astype(np.uint8)
     return Image.fromarray(rgb)
@@ -583,6 +605,7 @@ def run_relief(
     client: ChatClient | None = None,
 ) -> ReliefAnalysis:
     """Measure, visualize and describe raking-light relief (CPU + 1 call)."""
+    _require_numpy()
     active = settings or load_settings()
     images, shas, first_data_url = load_stack(paths, settings=active)
     mask, source = object_mask(first_data_url, images[0], concept, settings=active)

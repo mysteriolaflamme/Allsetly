@@ -13,9 +13,21 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-import cv2
-import numpy as np
-import plotly.graph_objects as go
+try:
+    import cv2
+except ImportError:  # pragma: no cover - optional dependency
+    cv2 = None  # type: ignore[assignment]
+
+try:
+    import numpy as np
+except ImportError:  # pragma: no cover - optional dependency
+    np = None  # type: ignore[assignment]
+
+try:
+    import plotly.graph_objects as go
+except ImportError:  # pragma: no cover - optional dependency
+    go = None  # type: ignore[assignment]
+
 from PIL import Image
 
 from temoin.config import Settings, load_settings
@@ -26,6 +38,18 @@ logger = logging.getLogger(__name__)
 
 class StereoError(Exception):
     """Raised when relief cannot be measured, with a plain-language message."""
+
+
+def _require_vision() -> None:
+    """Raise a plain-language error when OpenCV or NumPy is not installed."""
+    if cv2 is None or np is None:
+        raise StereoError("Le relief 3D demande OpenCV et NumPy, qui ne sont pas installés ici.")
+
+
+def _require_plotly() -> None:
+    """Raise a plain-language error when Plotly or NumPy is not installed."""
+    if np is None or go is None:
+        raise StereoError("Le nuage 3D demande Plotly et NumPy, qui ne sont pas installés ici.")
 
 
 @dataclass(frozen=True)
@@ -114,6 +138,7 @@ def _pair_quality(
 
 def pick_stereo_pair(images: list[Image.Image], *, min_matches: int = 30) -> tuple[int, int]:
     """Pick the pair with the strongest consistent parallax (flat fallback)."""
+    _require_vision()
     if len(images) < 2:
         raise StereoError("Il faut au moins deux vues pour mesurer le relief.")
     grays = [np.asarray(image.convert("L")) for image in images]
@@ -184,6 +209,7 @@ def _rectify(
 
 def normalize_relief(disparity: np.ndarray, valid: np.ndarray) -> np.ndarray:
     """Scale valid disparities to 0 far .. 1 near, saturating outliers."""
+    _require_vision()
     measured = disparity[valid]
     floor = float(np.percentile(measured, 1))
     ceiling = float(np.percentile(measured, 99))
@@ -202,6 +228,7 @@ def compute_depth(
     right_index: int = 1,
 ) -> DepthMatrix:
     """Compute the relative relief matrix of a stereo pair (0 far .. 1 near)."""
+    _require_vision()
     active = settings or load_settings()
     left_gray = np.asarray(left.convert("L"))
     right_gray = np.asarray(right.convert("L"))
@@ -263,6 +290,7 @@ def depth_from_video(
     video: str | Path, *, settings: Settings | None = None, max_frames: int | None = None
 ) -> tuple[DepthMatrix, Image.Image]:
     """Measure relief from a walkaround video (best overlapping frame pair)."""
+    _require_vision()
     active = settings or load_settings()
     wanted = active.video_max_frames if max_frames is None else max_frames
     frames = extract_frames(
@@ -285,6 +313,7 @@ def depth_from_video(
 
 def defect_relief(matrix: DepthMatrix, bbox: list[int]) -> ReliefStats:
     """Contrast mean relief inside a 0-1000 box vs its surrounding ring."""
+    _require_vision()
     x0 = min(max(round(bbox[0] / 1000 * matrix.width), 0), matrix.width)
     y0 = min(max(round(bbox[1] / 1000 * matrix.height), 0), matrix.height)
     x1 = min(max(round(bbox[2] / 1000 * matrix.width), 0), matrix.width)
@@ -315,6 +344,7 @@ def relief_wiggle(
     image: Image.Image, matrix: DepthMatrix, *, amplitude: float = 12.0, frames: int = 4
 ) -> bytes:
     """Render an animated parallax GIF from a relief matrix."""
+    _require_vision()
     base = np.asarray(image.convert("RGB").resize((matrix.width, matrix.height)))
     relief = np.array(matrix.values, dtype=np.float32)
     relief[relief < 0] = 0.0
@@ -343,6 +373,7 @@ def relief_wiggle(
 
 def relief_cloud(image: Image.Image, matrix: DepthMatrix, *, max_points: int = 6000) -> go.Figure:
     """Build an interactive 3D point cloud from measured relief only."""
+    _require_plotly()
     relief = np.array(matrix.values, dtype=np.float32)
     known = np.argwhere(relief >= 0)
     if known.size == 0:

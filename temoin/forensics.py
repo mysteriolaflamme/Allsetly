@@ -7,8 +7,16 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-import cv2
-import numpy as np
+try:
+    import cv2
+except ImportError:  # pragma: no cover - optional dependency
+    cv2 = None  # type: ignore[assignment]
+
+try:
+    import numpy as np
+except ImportError:  # pragma: no cover - optional dependency
+    np = None  # type: ignore[assignment]
+
 from PIL import Image
 
 from temoin.config import Settings, load_settings
@@ -24,6 +32,14 @@ _EXIF_ORIGINAL_TAG = 36867
 _BRIGHTNESS_LO = 25.0
 _BRIGHTNESS_HI = 230.0
 _MIN_SIDE = 480
+
+
+def _require_vision() -> None:
+    """Raise a plain-language error when OpenCV or NumPy is not installed."""
+    if cv2 is None or np is None:
+        raise ImageError(
+            "Le contrôle photo demande OpenCV et NumPy, qui ne sont pas installés ici."
+        )
 
 
 @dataclass(frozen=True)
@@ -95,18 +111,21 @@ def _ela_error(image: Image.Image, quality: int) -> np.ndarray:
 
 def ela_stats(image: Image.Image, *, quality: int = 90) -> ElaStats:
     """Summarize error-level analysis: mean and 99th percentile."""
+    _require_vision()
     error = _ela_error(image, quality)
     return ElaStats(mean=float(error.mean()), p99=float(np.percentile(error, 99)))
 
 
 def ela_map(image: Image.Image, *, quality: int = 90, scale: float = 12.0) -> Image.Image:
     """Return the amplified error-level map (bright areas look edited)."""
+    _require_vision()
     amplified = np.clip(_ela_error(image, quality) * scale, 0, 255).astype(np.uint8)
     return Image.fromarray(amplified, mode="L")
 
 
 def noise_stats(image: Image.Image, *, grid: int = 8) -> NoiseStats:
     """Count blocks whose noise deviates widely from the median block."""
+    _require_vision()
     gray = np.asarray(image.convert("L")).astype(np.float64)
     laplacian = cv2.Laplacian(gray, cv2.CV_64F)
     height, width = laplacian.shape
@@ -149,6 +168,7 @@ def exif_notes(image: Image.Image) -> ExifNotes:
 
 def quality_report(image: Image.Image, *, blur_min: float) -> QualityReport:
     """Score sharpness, brightness and resolution with French coaching advice."""
+    _require_vision()
     gray = np.asarray(image.convert("L"))
     sharpness = float(cv2.Laplacian(gray, cv2.CV_64F).var())
     brightness = float(gray.mean())
@@ -176,6 +196,7 @@ def quality_report(image: Image.Image, *, blur_min: float) -> QualityReport:
 
 def analyze_photo(photo: str | Path, *, settings: Settings | None = None) -> ForensicsReport:
     """Combine retouch signals and the quality gate for one photo."""
+    _require_vision()
     active = settings or load_settings()
     path = Path(photo)
     if not path.is_file():
