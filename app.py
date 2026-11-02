@@ -15,7 +15,6 @@ except ImportError:  # pragma: no cover - optional dependency
 import streamlit as st
 from PIL import Image
 
-from temoin.agent import run_investigation
 from temoin.compare import is_fresh
 from temoin.config import ConfigError, Settings, load_settings
 from temoin.evidence import build_board, rows_from_reports
@@ -38,6 +37,7 @@ from temoin.schemas import (
     VideoReport,
 )
 from temoin.seal import verify_certificate, verify_chain
+from temoin.service import investigate_delivery
 from temoin.speech import SpeechError, synthesize
 from temoin.stereo import (
     StereoError,
@@ -55,7 +55,6 @@ from temoin.storage import (
     list_transactions,
     load_transaction,
     save_transaction,
-    seal_comparison_in_transaction,
     transaction_path,
 )
 from temoin.video import VideoError, create_video_report, extract_frames, frames_dir_for
@@ -493,8 +492,6 @@ def delivery_flow(settings: Settings, lang: str) -> None:
         if upload is None:
             st.warning(t("err_photo_first", lang))
         else:
-            delivery_path = tx_dir / "delivery.jpg"
-            delivery_path.write_bytes(upload.getvalue())
             status = st.status(t("del_investigating", lang), expanded=True)
 
             def _live(entry: TrailEntry) -> None:
@@ -502,23 +499,12 @@ def delivery_flow(settings: Settings, lang: str) -> None:
                 status.write(f"{entry.step}. {entry.action} — {entry.summary}")
 
             try:
-                comparison = run_investigation(
-                    tx_dir / "sale.jpg",
-                    delivery_path,
-                    sale_code=tx.sale_code.code,
-                    delivery_code=tx.delivery_code.code,
-                    settings=settings,
-                    on_step=_live,
-                )
-            except (ConfigError, ImageError, ModelError) as error:
+                investigate_delivery(tx, upload.getvalue(), settings, on_step=_live)
+            except (ConfigError, ImageError, ModelError, StorageError) as error:
                 status.update(label=t("del_investigating", lang), state="error")
                 st.error(str(error))
                 return
             status.update(label=t("del_done", lang), state="complete", expanded=False)
-            delivery_report = create_report(delivery_path, tx.delivery_code.code, settings=settings)
-            tx = attach_constat(tx, "delivery", delivery_report)
-            save_transaction(tx, settings)
-            tx, _cert_path = seal_comparison_in_transaction(tx, comparison, settings)
             st.rerun()
     if not tx.certificates:
         return

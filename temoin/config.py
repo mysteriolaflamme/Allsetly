@@ -65,6 +65,8 @@ class Settings:
     # a real object exceeds both, a screen photo or print stays near zero.
     relief_flat_height_std: float = 0.03
     relief_flat_normal_spread: float = 0.08
+    # Business API keys (comma-separated TEMOIN_API_KEYS); empty = API closed.
+    api_keys: tuple[str, ...] = ()
 
 
 def _read_streamlit_secrets() -> dict[str, str]:
@@ -98,4 +100,5 @@ def load_settings(env_file: str | None = None) -> Settings:
         model_base_url=get("MODEL_BASE_URL") or Settings.model_base_url,
         model_api_key=get("MODEL_API_KEY"),
         model_api_url=get("MODEL_API_URL") or Settings.model_api_url,
+        api_keys=tuple(key.strip() for key in get("TEMOIN_API_KEYS").split(",") if key.strip()),
     )

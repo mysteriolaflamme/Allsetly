@@ -82,7 +82,7 @@ public repository. The demo shows only what was built during the event.
 python -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
 # put your keys in .env: BASETEN_API_KEY=... and MODEL_API_KEY=...
-.venv\Scripts\python -m streamlit run app.py
+.venv\Scripts\python -m streamlit run asgi_app.py   # app at /, API at /api/docs
 ```
 
 CLI:
@@ -104,17 +104,44 @@ CLI:
 ```
 
 Tests and lint from the project root: `python -m pytest`, `ruff check .`,
-`ruff format .` (290 tests, offline with a fake client).
+`ruff format .` (offline with a fake client).
+
+## Business API
+
+Marketplaces, couriers and escrow services can embed Témoin in their own
+platform. The REST API is served **by the same deployment** as the app
+(`streamlit run asgi_app.py`): the app at `/`, the API at `/api`, interactive
+OpenAPI docs at **`/api/docs`**. Both front doors share one workflow module
+(`temoin/service.py`), so partners get exactly the same rules as people.
+
+| Step | Call | Returns |
+|---|---|---|
+| 1 | `POST /api/v1/cases` | case id + seller challenge code (15 min) |
+| 2 | `POST /api/v1/cases/{id}/sale` (photo) | sale constat: flaws, checkpoints, freshness |
+| 3 | `POST /api/v1/cases/{id}/delivery-code` | buyer challenge code |
+| 4 | `POST /api/v1/cases/{id}/delivery` (photo) | agent verdict + sealed certificate |
+| – | `GET /api/v1/cases/{id}` | case status and verdicts |
+| – | `POST /api/v1/verify` (certificate JSON) | intact / tampered |
+
+Every call except `GET /api/v1/health` needs an `X-API-Key` header matching
+one of the comma-separated keys in `TEMOIN_API_KEYS`; with no key configured
+the API stays closed (503).
+
+```bash
+curl -X POST -H "X-API-Key: $KEY" https://<your-app>/api/v1/cases
+curl -X POST -H "X-API-Key: $KEY" -F "photo=@sale.jpg;type=image/jpeg"      https://<your-app>/api/v1/cases/tx-1a2b3c4d/sale
+```
 
 ## Deploy your own (Streamlit Community Cloud)
 
 1. Push this repository to a public GitHub repo.
-2. On share.streamlit.io, create an app from the repo (entrypoint `app.py`,
+2. On share.streamlit.io, create an app from the repo (entrypoint `asgi_app.py`,
    Python 3.11).
 3. In the app Secrets, paste:
    ```toml
    BASETEN_API_KEY = "your-baseten-key"
    MODEL_API_KEY = "your-meta-model-api-key"
+   TEMOIN_API_KEYS = "partner-key-1,partner-key-2"  # optional: opens the API
    ```
 4. Deploy. Note: cloud storage is ephemeral — sealed certificates should be
    downloaded (JSON + QR) to keep them.

@@ -4,6 +4,7 @@ version = "0.7.0"
 description = "Neutral visual witness for remote second-hand trade."
 requires-python = ">=3.11"
 dependencies = [
+    "fastapi",
     "meta-sam_parser",
     "onnxruntime",
     "openai",
@@ -18,6 +19,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "httpx",
     "pytest",
     "ruff",
 ]
