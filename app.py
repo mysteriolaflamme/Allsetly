@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import urllib.parse
 from pathlib import Path
 
@@ -178,6 +179,8 @@ def show_comparison(comparison: Comparison, lang: str) -> None:
             st.info(missing, icon=":material/photo_camera:")
     for warning in comparison.alerts:
         st.warning(warning.message, icon=":material/gpp_maybe:")
+    if st.button(t("verdict_listen", lang), icon=":material/volume_up:", key="verdict_listen"):
+        speak(f"{verdict_label(comparison.verdict, lang)}. {comparison.justification}", lang)
     with st.expander(
         f"{t('del_trail', lang)} · {len(comparison.trail)} {t('ver_steps', lang)}",
         icon=":material/timeline:",
@@ -365,6 +368,74 @@ def pick_case(settings: Settings, lang: str, *, label_key: str, key: str) -> str
     return raw
 
 
+def speak(text: str, lang: str) -> None:
+    """Read text aloud in the viewer's own browser (Web Speech API, no server GPU)."""
+    payload = json.dumps(text).replace("</", "<\\/")
+    voice = "fr-FR" if lang == "fr" else "en-US"
+    st.html(
+        "<script>(() => { const s = window.speechSynthesis; if (!s) return; s.cancel();"
+        f" const u = new SpeechSynthesisUtterance({payload}); u.lang = '{voice}';"
+        " s.speak(u); })();</script>",
+        unsafe_allow_javascript=True,
+    )
+
+
+def voice_conversation(
+    tx: Transaction, comparison: Comparison, settings: Settings, lang: str
+) -> None:
+    """Talk with the sealed case: Muse Voice listens, Muse Spark answers, the browser speaks."""
+    st.subheader(t("ask_title", lang), icon=":material/record_voice_over:")
+    st.caption(t("talk_caption", lang))
+    history: list[dict[str, str]] = st.session_state.setdefault(f"talk_{tx.id}", [])
+    for turn in history:
+        with st.chat_message(turn["role"], avatar=_AVATARS[turn["role"]]):
+            st.markdown(turn["text"])
+            if turn.get("sources"):
+                st.caption(f"{t('ask_sources', lang)} : {turn['sources']}")
+    aloud = st.toggle(t("talk_aloud", lang), value=True, key="talk_aloud")
+    message = st.chat_input(t("ask_question", lang), accept_audio=True, key=f"talk_in_{tx.id}")
+    if message is None:
+        return
+    question = message.text.strip()
+    if message.audio is not None:
+        with st.spinner(t("ask_transcribing", lang)):
+            try:
+                transcript = transcribe_audio(message.audio.getvalue(), settings=settings)
+            except (MetaAPIError, ConfigError) as error:
+                st.error(str(error))
+                return
+        question = transcript.text.strip() or question
+    if not question:
+        st.warning(t("ask_need", lang))
+        return
+    with st.chat_message("user", avatar=_AVATARS["user"]):
+        st.markdown(question)
+    with st.chat_message("assistant", avatar=_AVATARS["assistant"]):
+        with st.spinner(t("ask_running", lang)):
+            try:
+                answer = ask_question(
+                    question,
+                    sale=tx.sale_constat,
+                    delivery=tx.delivery_constat,
+                    comparison=comparison,
+                    settings=settings,
+                )
+            except (ModelError, ConfigError) as error:
+                st.error(str(error))
+                return
+        sources = ", ".join(answer.citations)
+        st.markdown(answer.answer)
+        if sources:
+            st.caption(f"{t('ask_sources', lang)} : {sources}")
+    history.append({"role": "user", "text": question})
+    history.append({"role": "assistant", "text": answer.answer, "sources": sources})
+    if aloud:
+        speak(answer.answer, lang)
+
+
+_AVATARS = {"user": ":material/person:", "assistant": ":material/verified_user:"}
+
+
 def delivery_flow(settings: Settings, lang: str) -> None:
     """Run the buyer flow: load case, code, photo, investigation, seal."""
     tx_id = pick_case(settings, lang, label_key="del_tx_label", key="del_case")
@@ -445,43 +516,7 @@ def delivery_flow(settings: Settings, lang: str) -> None:
         st.image(
             build_board(sale_img, delivery_img, rows, lang=lang), caption=t("board_title", lang)
         )
-        st.subheader(t("ask_title", lang), icon=":material/forum:")
-        st.caption(t("ask_hint", lang))
-        ask_text = st.text_input(t("ask_question", lang))
-        ask_record = st.audio_input(t("ask_record", lang))
-        if st.button(t("ask_button", lang)):
-            spoken: str | None = None
-            if ask_record is not None:
-                with st.spinner(t("ask_transcribing", lang)):
-                    try:
-                        transcript = transcribe_audio(ask_record.getvalue(), settings=settings)
-                    except (MetaAPIError, ConfigError) as error:
-                        st.error(str(error))
-                        return
-                if not transcript.text:
-                    st.warning(t("voice_empty", lang))
-                    return
-                spoken = transcript.text
-                st.caption(t("ask_heard", lang).format(question=spoken))
-            question = spoken or ask_text.strip()
-            if not question:
-                st.warning(t("ask_need", lang))
-                return
-            with st.spinner(t("ask_running", lang)):
-                try:
-                    answer = ask_question(
-                        question,
-                        sale=tx.sale_constat,
-                        delivery=tx.delivery_constat,
-                        comparison=latest.comparison,
-                        settings=settings,
-                    )
-                except (ModelError, ConfigError) as error:
-                    st.error(str(error))
-                    return
-            st.write(answer.answer)
-            sources = ", ".join(answer.citations) if answer.citations else "—"
-            st.caption(f"{t('ask_sources', lang)} : {sources}")
+        voice_conversation(tx, latest.comparison, settings, lang)
     show_certificate(latest, tx_dir / f"cert-{len(tx.certificates)}.qr.png", lang)
     with st.expander(t("sam_title", lang), icon=":material/select_all:"):
         overlay_path = tx_dir / "segment-delivery.png"

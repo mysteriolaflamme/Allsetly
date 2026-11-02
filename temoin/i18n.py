@@ -329,7 +329,19 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Aucune correspondance relevée.",
         "en": "No correspondences recorded.",
     },
-    "ask_title": {"fr": "Interroger le dossier", "en": "Question the case"},
+    "ask_title": {"fr": "Parler au dossier", "en": "Talk to the case"},
+    "talk_caption": {
+        "fr": (
+            "Parlez ou écrivez. Muse Voice Transcribe vous écoute, Muse Spark Open répond "
+            "uniquement à partir du dossier scellé, et votre téléphone lit la réponse."
+        ),
+        "en": (
+            "Speak or type. Muse Voice Transcribe listens, Muse Spark Open answers from "
+            "the sealed case only, and your phone reads the answer aloud."
+        ),
+    },
+    "talk_aloud": {"fr": "Réponses à voix haute", "en": "Answers read aloud"},
+    "verdict_listen": {"fr": "Écouter le verdict", "en": "Listen to the verdict"},
     "ask_hint": {
         "fr": (
             "Posez une question à l'écrit ou à la voix ; la réponse vient "
