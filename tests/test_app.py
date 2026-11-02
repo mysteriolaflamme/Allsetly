@@ -24,18 +24,23 @@ def test_app_boots_in_french_and_english() -> None:
     assert app.title[0].value == "Témoin — neutral visual witness"
 
 
-def test_app_has_six_tabs() -> None:
-    """Sale, Delivery, Verify, Video, Depth and Relief tabs are present."""
+def test_app_has_journey_tabs_and_lab() -> None:
+    """Numbered Sale, Delivery, Verify journey, plus one advanced-evidence tab."""
     app = _run_app()
     assert [tab.label for tab in app.tabs] == [
-        "Vente",
-        "Livraison",
-        "Vérifier",
-        "Vidéo",
-        "Profondeur",
-        "Relief",
+        ":material/sell: 1 · Vente",
+        ":material/local_shipping: 2 · Livraison",
+        ":material/verified: 3 · Vérifier",
+        ":material/science: Preuves avancées",
     ]
 
+
+def test_advanced_evidence_tools_each_render() -> None:
+    """Relief, Video and Depth each render from the advanced-evidence switch."""
+    app = _run_app()
+    for tool in ("video", "depth", "relief"):
+        app.button_group(key="lab_tool").set_value(tool).run()
+        assert not app.exception
 
 def test_case_pickers_replace_free_text_ids() -> None:
     """Delivery, Verify and Relief offer a case list, with a manual-entry option."""

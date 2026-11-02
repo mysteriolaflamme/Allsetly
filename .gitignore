@@ -30,3 +30,6 @@ eval/results/
 /nouvelles_paires/
 /relief_casque/
 /relief_ecran/
+
+# Streamlit deploy secrets (never committed)
+.streamlit/secrets.toml

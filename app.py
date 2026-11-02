@@ -60,23 +60,41 @@ from temoin.video import VideoError, create_video_report, extract_frames, frames
 
 def show_report(report: Report, lang: str, photo: Path | None) -> None:
     """Render a constat: description, freshness, framed flaws, checkpoints."""
-    st.write(f"**{t('report_object', lang)}** : {report.description}")
-    if report.materials:
-        st.write(f"**{t('report_materials', lang)}** : {', '.join(report.materials)}")
-    if report.declared_materials:
-        st.write(f"**{t('report_declared', lang)}** : {', '.join(report.declared_materials)}")
-    if report.condition_grade:
-        st.write(f"**{t('report_grade', lang)}** : {report.condition_grade}")
-        st.caption(t("val_basis", lang).format(n=len(report.defects)))
-    if is_fresh(report):
-        st.success(t("fresh_ok", lang).format(code=report.challenge.read_code or "?"))
-    else:
-        st.warning(t("fresh_ko", lang))
-    if report.alerts:
-        st.subheader(t("alerts", lang))
-        for alert in report.alerts:
-            st.warning(alert.message)
-    st.subheader(t("report_defects", lang))
+    with st.container(border=True):
+        if is_fresh(report):
+            code = report.challenge.read_code or "?"
+            st.badge(
+                t("fresh_badge_ok", lang).format(code=code),
+                icon=":material/verified:",
+                color="green",
+                help=t("fresh_ok", lang).format(code=code),
+            )
+        else:
+            st.badge(
+                t("fresh_badge_ko", lang),
+                icon=":material/warning:",
+                color="orange",
+                help=t("fresh_ko", lang),
+            )
+        st.markdown(f"**{t('report_object', lang)}** — {report.description}")
+        with st.container(horizontal=True):
+            if report.condition_grade:
+                st.metric(
+                    t("report_grade", lang),
+                    report.condition_grade,
+                    help=t("val_basis", lang).format(n=len(report.defects)),
+                )
+            st.metric(t("metric_defects", lang), len(report.defects))
+            st.metric(t("metric_checkpoints", lang), len(report.checkpoints))
+        if report.materials:
+            st.caption(f"{t('report_materials', lang)} : {', '.join(report.materials)}")
+        if report.declared_materials:
+            st.caption(f"{t('report_declared', lang)} : {', '.join(report.declared_materials)}")
+    for alert in report.alerts:
+        st.warning(alert.message, icon=":material/gpp_maybe:")
+    if photo is not None and photo.is_file():
+        st.image(draw_defects(photo, report.defects), caption=t("photo_caption", lang))
+    st.subheader(t("report_defects", lang), icon=":material/troubleshoot:")
     if not report.defects:
         st.write(t("report_none", lang))
     else:
@@ -102,31 +120,37 @@ def show_report(report: Report, lang: str, photo: Path | None) -> None:
                 for defect in report.defects
             ]
         )
-    if photo is not None and photo.is_file():
-        st.image(draw_defects(photo, report.defects), caption=t("photo_caption", lang))
     if report.checkpoints:
-        st.subheader(t("report_checkpoints", lang))
+        st.subheader(t("report_checkpoints", lang), icon=":material/my_location:")
         for number, point in enumerate(report.checkpoints, start=1):
             st.write(f"{number}. [{point.defect_id}] {point.instruction}")
 
 
+_VERDICT_STYLE = {
+    "CONFORME": (st.success, ":material/verified:"),
+    "ENDOMMAGÉ": (st.warning, ":material/build:"),
+    "À VÉRIFIER": (st.info, ":material/help:"),
+    "NON CONFORME": (st.error, ":material/gpp_bad:"),
+}
+
+
 def show_comparison(comparison: Comparison, lang: str) -> None:
     """Render a verdict with its evidence and trail."""
-    st.subheader(t("del_verdict", lang))
-    label = (
-        f"{verdict_label(comparison.verdict, lang)} "
-        f"({t('del_confidence', lang)} {comparison.confidence})"
+    st.subheader(t("del_verdict", lang), icon=":material/gavel:")
+    alert, icon = _VERDICT_STYLE.get(comparison.verdict, (st.warning, ":material/help:"))
+    alert(
+        comparison.justification,
+        title=verdict_label(comparison.verdict, lang),
+        icon=icon,
     )
-    if comparison.verdict == "CONFORME":
-        st.success(label)
-    elif comparison.verdict == "NON CONFORME":
-        st.error(label)
-    else:
-        st.warning(label)
-    st.progress(comparison.confidence)
-    st.write(f"**{t('del_justification', lang)}** : {comparison.justification}")
+    statuses = [match.status for match in comparison.matches]
+    with st.container(horizontal=True):
+        st.metric(t("del_confidence", lang), f"{comparison.confidence}/100", border=True)
+        st.metric(t("st_matched", lang), statuses.count("matched"), border=True)
+        st.metric(t("st_missing", lang), statuses.count("missing"), border=True)
+        st.metric(t("st_new", lang), statuses.count("new"), border=True)
     if comparison.matches:
-        st.subheader(t("del_matches", lang))
+        st.subheader(t("del_matches", lang), icon=":material/compare_arrows:")
         status_names = {
             "matched": t("st_matched", lang),
             "missing": t("st_missing", lang),
@@ -145,25 +169,33 @@ def show_comparison(comparison: Comparison, lang: str) -> None:
             ]
         )
     if comparison.contradictions:
-        st.subheader(t("del_contradictions", lang))
+        st.subheader(t("del_contradictions", lang), icon=":material/report:")
         for contradiction in comparison.contradictions:
             st.write(f"- {contradiction}")
     if comparison.missing_proof:
-        st.subheader(t("del_missing_proof", lang))
+        st.subheader(t("del_missing_proof", lang), icon=":material/add_a_photo:")
         for missing in comparison.missing_proof:
-            st.info(missing)
-    if comparison.alerts:
-        st.subheader(t("alerts", lang))
-        for alert in comparison.alerts:
-            st.warning(alert.message)
-    with st.expander(t("del_trail", lang)):
+            st.info(missing, icon=":material/photo_camera:")
+    for warning in comparison.alerts:
+        st.warning(warning.message, icon=":material/gpp_maybe:")
+    with st.expander(
+        f"{t('del_trail', lang)} · {len(comparison.trail)} {t('ver_steps', lang)}",
+        icon=":material/timeline:",
+    ):
         for entry in comparison.trail:
             st.write(f"{entry.step}. **{entry.action}** — {entry.summary}")
 
 
+def show_challenge_code(title: str, code: str) -> None:
+    """Show a challenge code big and centered, readable from arm's length."""
+    with st.container(border=True, horizontal_alignment="center"):
+        st.caption(title, text_alignment="center")
+        st.header(code, anchor=False, text_alignment="center")
+
+
 def show_certificate(certificate: Certificate, qr_path: Path, lang: str) -> None:
     """Render a sealed certificate with download and QR code."""
-    st.subheader(t("del_certificate", lang))
+    st.subheader(t("del_certificate", lang), icon=":material/workspace_premium:")
     st.download_button(
         t("del_download", lang),
         data=certificate.model_dump_json(indent=2),
@@ -200,7 +232,7 @@ def show_verify_result(certificate: Certificate, lang: str) -> None:
 
 def sale_flow(settings: Settings, lang: str) -> None:
     """Run the seller flow: new case, code, photo, constat, share link."""
-    if st.button(t("sale_new", lang)):
+    if st.button(t("sale_new", lang), icon=":material/add_circle:", type="primary"):
         tx = create_transaction(settings)
         save_transaction(tx, settings)
         st.session_state.sale_tx_id = tx.id
@@ -215,13 +247,12 @@ def sale_flow(settings: Settings, lang: str) -> None:
         st.session_state.pop("sale_tx_id", None)
         st.error(str(error))
         return
-    st.subheader(t("sale_code_title", lang))
-    st.markdown(f"# `{tx.sale_code.code}`")
+    show_challenge_code(t("sale_code_title", lang), tx.sale_code.code)
     declared_raw = st.text_input(
         t("sale_materials", lang), value=st.session_state.get("sale_materials", "")
     )
     upload = st.file_uploader(t("sale_upload", lang), type=["jpg", "jpeg", "png", "webp"])
-    if st.button(t("sale_analyze", lang)):
+    if st.button(t("sale_analyze", lang), icon=":material/document_scanner:", type="primary"):
         if upload is None:
             st.warning(t("err_photo_first", lang))
         else:
@@ -232,7 +263,7 @@ def sale_flow(settings: Settings, lang: str) -> None:
                 try:
                     forensics = analyze_photo(photo_path, settings=settings)
                     if forensics.suspicious or forensics.quality.advice:
-                        st.subheader(t("for_title", lang))
+                        st.subheader(t("for_title", lang), icon=":material/image_search:")
                         for signal in forensics.signals:
                             st.warning(signal)
                         for tip in forensics.quality.advice:
@@ -254,13 +285,17 @@ def sale_flow(settings: Settings, lang: str) -> None:
     if tx.sale_constat is None:
         return
     show_report(tx.sale_constat, lang, transaction_path(tx.id, settings) / "sale.jpg")
-    st.subheader(t("sale_share_title", lang))
+    st.subheader(t("sale_share_title", lang), icon=":material/share:")
     st.code(tx.id)
     st.caption(t("sale_share_help", lang))
     text = t("sale_share_text", lang).format(tx=tx.id)
-    st.link_button(t("sale_whatsapp", lang), "https://wa.me/?text=" + urllib.parse.quote(text))
+    st.link_button(
+        t("sale_whatsapp", lang),
+        icon=":material/send:",
+        url="https://wa.me/?text=" + urllib.parse.quote(text),
+    )
     st.caption(t("sale_simulated", lang))
-    st.subheader(t("voice_title", lang))
+    st.subheader(t("voice_title", lang), icon=":material/mic:")
     record = st.audio_input(t("voice_record", lang))
     upload_voice = st.file_uploader(t("voice_upload", lang), type=["wav"])
     if st.button(t("voice_button", lang)):
@@ -347,21 +382,20 @@ def delivery_flow(settings: Settings, lang: str) -> None:
         st.error(t("del_not_found", lang))
         return
     tx_dir = transaction_path(tx.id, settings)
-    st.subheader(t("del_recap", lang))
+    st.subheader(t("del_recap", lang), icon=":material/inventory_2:")
     if tx.sale_constat is None:
         st.warning(t("del_no_sale", lang))
         return
     show_report(tx.sale_constat, lang, tx_dir / "sale.jpg")
     if tx.delivery_code is None:
-        if st.button(t("del_gen_code", lang)):
+        if st.button(t("del_gen_code", lang), icon=":material/pin:", type="primary"):
             tx = issue_delivery_code(tx, settings)
             save_transaction(tx, settings)
             st.rerun()
         return
-    st.subheader(t("del_code_title", lang))
-    st.markdown(f"# `{tx.delivery_code.code}`")
+    show_challenge_code(t("del_code_title", lang), tx.delivery_code.code)
     upload = st.file_uploader(t("del_upload", lang), type=["jpg", "jpeg", "png", "webp"])
-    if st.button(t("del_investigate", lang)):
+    if st.button(t("del_investigate", lang), icon=":material/policy:", type="primary"):
         if upload is None:
             st.warning(t("err_photo_first", lang))
         else:
@@ -404,14 +438,14 @@ def delivery_flow(settings: Settings, lang: str) -> None:
         and sale_path.is_file()
         and delivery_path.is_file()
     ):
-        st.subheader(t("board_title", lang))
+        st.subheader(t("board_title", lang), icon=":material/compare:")
         rows = rows_from_reports(tx.sale_constat, tx.delivery_constat, latest.comparison, lang=lang)
         sale_img = Image.open(sale_path).convert("RGB")
         delivery_img = Image.open(delivery_path).convert("RGB")
         st.image(
             build_board(sale_img, delivery_img, rows, lang=lang), caption=t("board_title", lang)
         )
-        st.subheader(t("ask_title", lang))
+        st.subheader(t("ask_title", lang), icon=":material/forum:")
         st.caption(t("ask_hint", lang))
         ask_text = st.text_input(t("ask_question", lang))
         ask_record = st.audio_input(t("ask_record", lang))
@@ -449,40 +483,42 @@ def delivery_flow(settings: Settings, lang: str) -> None:
             sources = ", ".join(answer.citations) if answer.citations else "—"
             st.caption(f"{t('ask_sources', lang)} : {sources}")
     show_certificate(latest, tx_dir / f"cert-{len(tx.certificates)}.qr.png", lang)
-    st.subheader(t("sam_title", lang))
-    overlay_path = tx_dir / "segment-delivery.png"
-    concept = st.text_input(t("sam_concept", lang), value=st.session_state.get("sam_concept", ""))
-    if st.button(t("sam_button", lang)):
-        st.session_state.sam_concept = concept.strip()
-        if not concept.strip():
-            st.warning(t("sam_need_concept", lang))
-        elif not (tx_dir / "delivery.jpg").is_file():
-            st.warning(t("err_photo_first", lang))
-        else:
-            with st.spinner(t("sam_running", lang)):
-                try:
-                    prepared = prepare_image(
-                        tx_dir / "delivery.jpg",
-                        max_pixels=settings.image_max_pixels,
-                        max_megabytes=settings.image_max_megabytes,
-                        jpeg_quality=settings.image_jpeg_quality,
-                    )
-                    segmentation = segment_image(
-                        prepared.data_url, concept.strip(), settings=settings
-                    )
-                except (ImageError, MetaAPIError) as error:
-                    st.error(str(error))
-                else:
-                    draw_segmentation(decode_data_url(prepared.data_url), segmentation).save(
-                        overlay_path
-                    )
-                    st.session_state.sam_masks = len(segmentation.masks)
-                    st.rerun()
-    if overlay_path.is_file():
-        if st.session_state.get("sam_masks") == 0:
-            st.info(t("sam_none", lang).format(concept=st.session_state.get("sam_concept", "")))
-        else:
-            st.image(str(overlay_path), caption=t("sam_caption", lang))
+    with st.expander(t("sam_title", lang), icon=":material/select_all:"):
+        overlay_path = tx_dir / "segment-delivery.png"
+        concept = st.text_input(
+            t("sam_concept", lang), value=st.session_state.get("sam_concept", "")
+        )
+        if st.button(t("sam_button", lang)):
+            st.session_state.sam_concept = concept.strip()
+            if not concept.strip():
+                st.warning(t("sam_need_concept", lang))
+            elif not (tx_dir / "delivery.jpg").is_file():
+                st.warning(t("err_photo_first", lang))
+            else:
+                with st.spinner(t("sam_running", lang)):
+                    try:
+                        prepared = prepare_image(
+                            tx_dir / "delivery.jpg",
+                            max_pixels=settings.image_max_pixels,
+                            max_megabytes=settings.image_max_megabytes,
+                            jpeg_quality=settings.image_jpeg_quality,
+                        )
+                        segmentation = segment_image(
+                            prepared.data_url, concept.strip(), settings=settings
+                        )
+                    except (ImageError, MetaAPIError) as error:
+                        st.error(str(error))
+                    else:
+                        draw_segmentation(decode_data_url(prepared.data_url), segmentation).save(
+                            overlay_path
+                        )
+                        st.session_state.sam_masks = len(segmentation.masks)
+                        st.rerun()
+        if overlay_path.is_file():
+            if st.session_state.get("sam_masks") == 0:
+                st.info(t("sam_none", lang).format(concept=st.session_state.get("sam_concept", "")))
+            else:
+                st.image(str(overlay_path), caption=t("sam_caption", lang))
 
 
 def verify_flow(settings: Settings, lang: str) -> None:
@@ -498,7 +534,7 @@ def verify_flow(settings: Settings, lang: str) -> None:
                 st.error(t("ver_invalid", lang))
             else:
                 show_verify_result(certificate, lang)
-    st.subheader(t("ver_chain_title", lang))
+    st.subheader(t("ver_chain_title", lang), icon=":material/link:")
     chain_id = pick_case(settings, lang, label_key="ver_tx_label", key="ver_case")
     if st.button(t("ver_chain_check", lang)):
         try:
@@ -852,14 +888,30 @@ def relief_flow(settings: Settings, lang: str) -> None:
     st.caption(t("relief_seal_note", lang))
 
 
-st.set_page_config(page_title="Témoin", layout="centered")
+st.set_page_config(page_title="Témoin", page_icon=":material/verified_user:", layout="centered")
 
-choice = st.sidebar.radio("Langue / Language", ["Français", "English"])
-lang = "fr" if choice == "Français" else "en"
+_LAB_TOOLS = {
+    "relief": ("tab_relief", ":material/light_mode:"),
+    "video": ("tab_video", ":material/videocam:"),
+    "depth": ("lab_experimental", ":material/view_in_ar:"),
+}
 
-st.title(t("app_title", lang))
+with st.sidebar:
+    choice = st.radio("Langue / Language", ["Français", "English"])
+    lang = "fr" if choice == "Français" else "en"
+    st.subheader(t("how_title", lang), icon=":material/route:")
+    for step in ("how_1", "how_2", "how_3"):
+        st.markdown(t(step, lang))
+    st.subheader(t("meta_models", lang), icon=":material/hub:")
+    with st.container(horizontal=True):
+        st.badge("Muse Spark Open", icon=":material/psychology:", color="primary")
+        st.badge("SAM 3.1", icon=":material/select_all:", color="violet")
+        st.badge("Muse Voice Transcribe", icon=":material/mic:", color="blue")
+        st.badge("Muse Code", icon=":material/code:", color="gray")
+    st.caption(t("disclaimer", lang))
+
+st.title(t("app_title", lang), icon=":material/verified_user:")
 st.caption(t("tagline", lang))
-st.caption(t("disclaimer", lang))
 
 try:
     settings = load_settings()
@@ -867,14 +919,12 @@ except ConfigError as error:
     st.error(str(error))
     st.stop()
 
-sale_tab, delivery_tab, verify_tab, video_tab, depth_tab, relief_tab = st.tabs(
+sale_tab, delivery_tab, verify_tab, lab_tab = st.tabs(
     [
-        t("tab_sale", lang),
-        t("tab_delivery", lang),
-        t("tab_verify", lang),
-        t("tab_video", lang),
-        t("tab_depth", lang),
-        t("tab_relief", lang),
+        f":material/sell: 1 · {t('tab_sale', lang)}",
+        f":material/local_shipping: 2 · {t('tab_delivery', lang)}",
+        f":material/verified: 3 · {t('tab_verify', lang)}",
+        f":material/science: {t('tab_lab', lang)}",
     ]
 )
 with sale_tab:
@@ -883,9 +933,19 @@ with delivery_tab:
     delivery_flow(settings, lang)
 with verify_tab:
     verify_flow(settings, lang)
-with video_tab:
-    video_flow(settings, lang)
-with depth_tab:
-    depth_flow(settings, lang)
-with relief_tab:
-    relief_flow(settings, lang)
+with lab_tab:
+    st.caption(t("lab_hint", lang))
+    tool = st.segmented_control(
+        t("lab_pick", lang),
+        list(_LAB_TOOLS),
+        default="relief",
+        required=True,
+        format_func=lambda key: f"{_LAB_TOOLS[key][1]} {t(_LAB_TOOLS[key][0], lang)}",
+        key="lab_tool",
+    )
+    if tool == "relief":
+        relief_flow(settings, lang)
+    elif tool == "video":
+        video_flow(settings, lang)
+    else:
+        depth_flow(settings, lang)

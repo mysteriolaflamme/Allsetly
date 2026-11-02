@@ -1,0 +1,52 @@
+# Témoin visual identity: calm, trustworthy, legible on a phone in daylight.
+# Teal = seal / verified; light and dark both available from the settings menu.
+
+[client]
+toolbarMode = "minimal"
+
+[server]
+maxUploadSize = 15
+
+[theme]
+showWidgetBorder = true
+showSidebarBorder = true
+baseRadius = "10px"
+buttonRadius = "10px"
+font = "'Inter':https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap"
+baseFontSize = 15
+headingFontWeights = [700, 650, 600, 600, 600, 600]
+
+[theme.light]
+primaryColor = "#0F766E"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F4F7F6"
+codeBackgroundColor = "#EEF2F1"
+textColor = "#0B1514"
+linkColor = "#0F766E"
+borderColor = "#DDE5E3"
+greenColor = "#15803D"
+redColor = "#DC2626"
+orangeColor = "#EA580C"
+blueColor = "#2563EB"
+violetColor = "#7C3AED"
+
+[theme.dark]
+primaryColor = "#2DD4BF"
+backgroundColor = "#0B1110"
+secondaryBackgroundColor = "#141C1B"
+codeBackgroundColor = "#1C2625"
+textColor = "#ECF3F2"
+linkColor = "#5EEAD4"
+borderColor = "#24302E"
+greenColor = "#4ADE80"
+redColor = "#F87171"
+orangeColor = "#FB923C"
+blueColor = "#60A5FA"
+violetColor = "#A78BFA"
+
+[theme.light.sidebar]
+backgroundColor = "#F4F7F6"
+
+[theme.dark.sidebar]
+backgroundColor = "#080D0C"
