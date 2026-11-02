@@ -33,6 +33,8 @@ added here (deploy guide below).
 - **Sealed certificate** — SHA-256 chain + QR + WhatsApp share link.
 - **Precise segmentation** — SAM 3.1 masks overlaid on the photo.
 - **Voice declaration** — transcribed with Muse Voice Transcribe.
+- **Talk to the case** — ask by voice; Muse Spark Open answers from the sealed
+  case only (with citations) and Meta MMS-TTS reads the answer aloud, on CPU.
 - **Video constat** — walkaround video fused into multi-view confirmed flaws.
 - **Materials + condition grade** — observed vs declared, A/B/C/D note.
 - **Forensics** — retouch signals plus photo quality coaching.
@@ -64,6 +66,8 @@ photos (see `eval/pairs/README.md`).
 - **SAM 3.1** (`sam-3.1` via Meta Model API) — pixel-exact object masks.
 - **Muse Voice Transcribe** (`muse-voice-transcribe-1.0` via Meta Model API)
   — one-shot transcription of voice declarations.
+- **MMS-TTS** (Meta *Massively Multilingual Speech*, open weights, French and
+  English VITS voices, ONNX on CPU) — spoken answers and verdicts, no GPU.
 - Built with **Muse Code** (Meta, agentic CLI).
 
 ## Built during the hackathon (Oct 27 – Nov 4)
@@ -127,6 +131,11 @@ Tests and lint from the project root: `python -m pytest`, `ruff check .`,
 - Meta Model API: `https://api.meta.ai/v1` (key `MODEL_API_KEY`). When it is
   unreachable, Témoin degrades gracefully (constat boxes, typed declaration)
   and never invents masks or transcripts.
+- Meta MMS-TTS voices: `Xenova/mms-tts-fra` and `Xenova/mms-tts-eng` ONNX exports
+  (~114 MB each, pinned revisions), run with onnxruntime on CPU (~0.5 s per
+  second of speech). Downloaded once per language into `data/models/tts/` with
+  SHA-256 verification; if unavailable, the browser voice reads the answer.
+  MMS weights are licensed CC-BY-NC 4.0 (non-commercial).
 - Mono AI relief: MiDaS v2.1 small ONNX (official isl-org release, ~64 MB),
   run on CPU via OpenCV DNN in ~1 s. Downloaded once on first use into
   `data/models/` (git-ignored) with SHA-256 verification; offline use fails

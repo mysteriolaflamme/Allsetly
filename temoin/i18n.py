@@ -333,15 +333,27 @@ STRINGS: dict[str, dict[str, str]] = {
     "talk_caption": {
         "fr": (
             "Parlez ou écrivez. Muse Voice Transcribe vous écoute, Muse Spark Open répond "
-            "uniquement à partir du dossier scellé, et votre téléphone lit la réponse."
+            "uniquement à partir du dossier scellé, et Meta MMS lit la réponse."
         ),
         "en": (
             "Speak or type. Muse Voice Transcribe listens, Muse Spark Open answers from "
-            "the sealed case only, and your phone reads the answer aloud."
+            "the sealed case only, and Meta MMS reads the answer aloud."
         ),
     },
     "talk_aloud": {"fr": "Réponses à voix haute", "en": "Answers read aloud"},
     "verdict_listen": {"fr": "Écouter le verdict", "en": "Listen to the verdict"},
+    "voice_preparing": {
+        "fr": "Préparation de la voix Meta…",
+        "en": "Preparing the Meta voice…",
+    },
+    "voice_meta": {
+        "fr": "Voix : Meta MMS-TTS (modèle ouvert, sur processeur, sans GPU)",
+        "en": "Voice: Meta MMS-TTS (open weights, on CPU, no GPU)",
+    },
+    "voice_browser": {
+        "fr": "Voix Meta indisponible : lecture par la voix du navigateur.",
+        "en": "Meta voice unavailable: read by the browser voice.",
+    },
     "ask_hint": {
         "fr": (
             "Posez une question à l'écrit ou à la voix ; la réponse vient "

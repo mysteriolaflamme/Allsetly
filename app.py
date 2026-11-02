@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import urllib.parse
 from pathlib import Path
+from typing import Any
 
 try:
     import plotly.io as plotly_io
@@ -37,6 +38,7 @@ from temoin.schemas import (
     VideoReport,
 )
 from temoin.seal import verify_certificate, verify_chain
+from temoin.speech import SpeechError, synthesize
 from temoin.stereo import (
     StereoError,
     compute_depth,
@@ -368,9 +370,15 @@ def pick_case(settings: Settings, lang: str, *, label_key: str, key: str) -> str
     return raw
 
 
-def speak(text: str, lang: str) -> None:
-    """Read text aloud in the viewer's own browser (Web Speech API, no server GPU)."""
-    payload = json.dumps(text).replace("</", "<\\/")
+@st.cache_data(max_entries=64, show_spinner=False)
+def _meta_voice(text: str, lang: str) -> bytes:
+    """Synthesize once per (text, language); failures are not cached."""
+    return synthesize(text, lang)
+
+
+def _browser_voice(text: str, lang: str) -> None:
+    """Fallback: read text aloud with the viewer's browser (Web Speech API)."""
+    payload = json.dumps(text).replace("</", r"<\/")
     voice = "fr-FR" if lang == "fr" else "en-US"
     st.html(
         "<script>(() => { const s = window.speechSynthesis; if (!s) return; s.cancel();"
@@ -380,18 +388,34 @@ def speak(text: str, lang: str) -> None:
     )
 
 
+def speak(text: str, lang: str) -> bytes | None:
+    """Read text aloud with Meta MMS-TTS on CPU; fall back to the browser voice."""
+    try:
+        with st.spinner(t("voice_preparing", lang)):
+            audio = _meta_voice(text, lang)
+    except SpeechError:
+        _browser_voice(text, lang)
+        st.caption(t("voice_browser", lang))
+        return None
+    st.audio(audio, format="audio/wav", autoplay=True)
+    st.caption(t("voice_meta", lang))
+    return audio
+
+
 def voice_conversation(
     tx: Transaction, comparison: Comparison, settings: Settings, lang: str
 ) -> None:
     """Talk with the sealed case: Muse Voice listens, Muse Spark answers, the browser speaks."""
     st.subheader(t("ask_title", lang), icon=":material/record_voice_over:")
     st.caption(t("talk_caption", lang))
-    history: list[dict[str, str]] = st.session_state.setdefault(f"talk_{tx.id}", [])
+    history: list[dict[str, Any]] = st.session_state.setdefault(f"talk_{tx.id}", [])
     for turn in history:
         with st.chat_message(turn["role"], avatar=_AVATARS[turn["role"]]):
             st.markdown(turn["text"])
             if turn.get("sources"):
                 st.caption(f"{t('ask_sources', lang)} : {turn['sources']}")
+            if turn.get("audio"):
+                st.audio(turn["audio"], format="audio/wav")
     aloud = st.toggle(t("talk_aloud", lang), value=True, key="talk_aloud")
     message = st.chat_input(t("ask_question", lang), accept_audio=True, key=f"talk_in_{tx.id}")
     if message is None:
@@ -427,10 +451,9 @@ def voice_conversation(
         st.markdown(answer.answer)
         if sources:
             st.caption(f"{t('ask_sources', lang)} : {sources}")
+        audio = speak(answer.answer, lang) if aloud else None
     history.append({"role": "user", "text": question})
-    history.append({"role": "assistant", "text": answer.answer, "sources": sources})
-    if aloud:
-        speak(answer.answer, lang)
+    history.append({"role": "assistant", "text": answer.answer, "sources": sources, "audio": audio})
 
 
 _AVATARS = {"user": ":material/person:", "assistant": ":material/verified_user:"}

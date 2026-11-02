@@ -9,7 +9,7 @@ import pytest
 from PIL import Image
 from streamlit.testing.v1 import AppTest
 
-from temoin import config, qa
+from temoin import config, qa, speech
 from temoin.config import Settings
 from temoin.schemas import CaseAnswer, Comparison, Report
 from temoin.storage import (
@@ -98,6 +98,7 @@ def test_voice_conversation_answers_and_speaks(
             transaction_path(tx.id, settings) / name
         )
     monkeypatch.setattr(config, "load_settings", lambda: settings)
+    monkeypatch.setattr(speech, "synthesize", lambda text, lang: b"RIFF-fake-wav")
     monkeypatch.setattr(
         qa,
         "ask_question",
@@ -113,4 +114,35 @@ def test_voice_conversation_answers_and_speaks(
     assert not app.exception
     assert [message.name for message in app.chat_message] == ["user", "assistant"]
     assert app.chat_message[1].markdown[0].value == "Réponse : Est-ce le même objet ?"
+    assert len(app.get("audio")) == 1
+
+
+def test_voice_falls_back_to_browser_when_meta_voice_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_settings: Settings,
+    sale_report: Report,
+    delivery_report: Report,
+    comparison: Comparison,
+) -> None:
+    """Without the Meta voice, the answer is still read by the browser."""
+    settings = dataclasses.replace(test_settings, data_dir=tmp_path / "data")
+    tx = create_transaction(settings, sale_code="K7")
+    tx = issue_delivery_code(tx, settings, code="Q9")
+    tx = attach_constat(tx, "sale", sale_report)
+    tx = attach_constat(tx, "delivery", delivery_report)
+    tx, _ = seal_comparison_in_transaction(tx, comparison, settings)
+    for name in ("sale.jpg", "delivery.jpg"):
+        Image.new("RGB", (320, 240)).save(transaction_path(tx.id, settings) / name)
+
+    def _no_voice(text: str, lang: str) -> bytes:
+        raise speech.SpeechError("offline")
+
+    monkeypatch.setattr(config, "load_settings", lambda: settings)
+    monkeypatch.setattr(speech, "synthesize", _no_voice)
+    app = AppTest.from_file(Path(__file__).parent.parent / "app.py", default_timeout=30)
+    app.session_state["del_tx_id"] = tx.id
+    app.run()
+    app.button(key="verdict_listen").click().run()
+    assert not app.exception
     assert any("speechSynthesis" in str(block.proto) for block in app.get("html"))

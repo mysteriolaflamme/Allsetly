@@ -5,6 +5,7 @@ description = "Neutral visual witness for remote second-hand trade."
 requires-python = ">=3.11"
 dependencies = [
     "meta-sam_parser",
+    "onnxruntime",
     "openai",
     "opencv-python-headless",
     "pillow",
