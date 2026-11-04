@@ -67,6 +67,8 @@ class Settings:
     relief_flat_normal_spread: float = 0.08
     # Business API keys (comma-separated TEMOIN_API_KEYS); empty = API closed.
     api_keys: tuple[str, ...] = ()
+    # Language of model-written content (constats, verdicts): "fr" or "en".
+    content_language: str = "fr"
 
 
 def _read_streamlit_secrets() -> dict[str, str]:

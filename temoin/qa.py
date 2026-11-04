@@ -68,6 +68,7 @@ def ask_question(
         api_key=active_settings.baseten_api_key,
         base_url=active_settings.model_base_url,
         timeout_seconds=active_settings.model_timeout_seconds,
+        language=active_settings.content_language,
     )
 
     def _check(checked: CaseAnswer) -> None:

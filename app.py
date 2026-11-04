@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import urllib.parse
 from pathlib import Path
@@ -959,7 +960,7 @@ st.title(t("app_title", lang), icon=":material/verified_user:")
 st.caption(t("tagline", lang))
 
 try:
-    settings = load_settings()
+    settings = dataclasses.replace(load_settings(), content_language=lang)
 except ConfigError as error:
     st.error(str(error))
     st.stop()

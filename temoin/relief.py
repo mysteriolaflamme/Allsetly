@@ -566,6 +566,7 @@ def describe_relief(
         api_key=active.baseten_api_key,
         base_url=active.model_base_url,
         timeout_seconds=active.model_timeout_seconds,
+        language=active.content_language,
     )
 
     def _check(answer: ReliefDescription) -> None:

@@ -66,11 +66,14 @@ class ChatClient(Protocol):
 class OpenAIChatClient:
     """Adapter from the OpenAI SDK to the ChatClient protocol."""
 
-    def __init__(self, *, api_key: str, base_url: str, timeout_seconds: float) -> None:
+    def __init__(
+        self, *, api_key: str, base_url: str, timeout_seconds: float, language: str = "fr"
+    ) -> None:
         """Store credentials; the SDK client is created per call."""
         self._api_key = api_key
         self._base_url = base_url
         self._timeout_seconds = timeout_seconds
+        self.language = language
 
     def chat(self, model: str, messages: list[dict[str, Any]]) -> str:
         """Call chat completions and return the final message content only."""
@@ -78,7 +81,9 @@ class OpenAIChatClient:
 
         client = OpenAI(api_key=self._api_key, base_url=self._base_url)
         response = client.chat.completions.create(
-            model=model, messages=messages, timeout=self._timeout_seconds
+            model=model,
+            messages=localize_messages(messages, self.language),
+            timeout=self._timeout_seconds,
         )
         content = response.choices[0].message.content
         if not content or not content.strip():
@@ -97,7 +102,10 @@ class OpenAIChatClient:
         client = OpenAI(api_key=self._api_key, base_url=self._base_url)
         extra: dict[str, Any] = {"tools": tools} if tools is not None else {}
         response = client.chat.completions.create(
-            model=model, messages=messages, timeout=self._timeout_seconds, **extra
+            model=model,
+            messages=localize_messages(messages, self.language),
+            timeout=self._timeout_seconds,
+            **extra,
         )
         message = response.choices[0].message
         calls = [
@@ -107,9 +115,36 @@ class OpenAIChatClient:
         return ChatAnswer(content=message.content or "", tool_calls=calls)
 
 
-def default_client(*, api_key: str, base_url: str, timeout_seconds: float) -> ChatClient:
-    """Build the real model-backed chat client."""
-    return OpenAIChatClient(api_key=api_key, base_url=base_url, timeout_seconds=timeout_seconds)
+def localize_messages(messages: list[dict[str, Any]], language: str) -> list[dict[str, Any]]:
+    """Ask for model-written content in the user's language (prompts default to French)."""
+    if language != "en":
+        return messages
+
+    def _swap(text: str) -> str:
+        return text.replace("in French", "in English")
+
+    localized = []
+    for message in messages:
+        content = message.get("content")
+        if isinstance(content, str):
+            message = {**message, "content": _swap(content)}
+        elif isinstance(content, list):
+            parts = [
+                {**part, "text": _swap(part["text"])} if part.get("type") == "text" else part
+                for part in content
+            ]
+            message = {**message, "content": parts}
+        localized.append(message)
+    return localized
+
+
+def default_client(
+    *, api_key: str, base_url: str, timeout_seconds: float, language: str = "fr"
+) -> ChatClient:
+    """Build the real model-backed chat client, writing content in the given language."""
+    return OpenAIChatClient(
+        api_key=api_key, base_url=base_url, timeout_seconds=timeout_seconds, language=language
+    )
 
 
 def build_cache_key(*, image_sha256: str, expected_code: str) -> str:
@@ -211,7 +246,9 @@ def complete_json(
     On invalid JSON, the error is sent back to the model for a new attempt.
     An optional extra_check runs after validation and feeds the same retry.
     """
-    cache_file = cache_dir / f"{cache_key}.json"
+    language = getattr(client, "language", "fr")
+    suffix = "" if language == "fr" else f"-{language}"
+    cache_file = cache_dir / f"{cache_key}{suffix}.json"
     cached = _read_cache(cache_file)
     if cached is not None:
         try:

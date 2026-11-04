@@ -150,3 +150,22 @@ def test_cache_json_roundtrip(tmp_path: Path) -> None:
     assert read_cache_json(tmp_path, "missing") is None
     (tmp_path / "bad.json").write_text("not json", encoding="utf-8")
     assert read_cache_json(tmp_path, "bad") is None
+
+
+def test_english_content_swaps_the_language_instruction() -> None:
+    """In English, every 'in French' instruction (text or multimodal parts) asks for English."""
+    from temoin.model import localize_messages
+
+    messages = [
+        {"role": "system", "content": "Write all messages in French."},
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": "Zones in French."}, {"type": "image_url"}],
+        },
+    ]
+    english = localize_messages(messages, "en")
+    assert english[0]["content"] == "Write all messages in English."
+    assert english[1]["content"][0]["text"] == "Zones in English."
+    assert english[1]["content"][1] == {"type": "image_url"}
+    assert localize_messages(messages, "fr") is messages
+    assert messages[0]["content"] == "Write all messages in French."
