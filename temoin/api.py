@@ -18,12 +18,13 @@ keys in ``TEMOIN_API_KEYS``; with no key configured the API stays closed.
 from __future__ import annotations
 
 import hmac
+import logging
 from datetime import datetime, timedelta
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from temoin.compare import is_fresh
@@ -40,6 +41,8 @@ from temoin.storage import (
     load_transaction,
     save_transaction,
 )
+
+logger = logging.getLogger(__name__)
 
 api = FastAPI(
     title="Témoin API",
@@ -59,6 +62,16 @@ api = FastAPI(
     servers=[{"url": "."}],
     root_path_in_servers=False,
 )
+
+
+@api.exception_handler(Exception)
+async def unexpected_error(_request: Request, error: Exception) -> JSONResponse:
+    """Log unexpected failures and answer JSON that names the error type (never secrets)."""
+    logger.exception("Unexpected API error")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Erreur interne de Témoin.", "error": type(error).__name__},
+    )
 
 
 @api.get("/docs", include_in_schema=False)

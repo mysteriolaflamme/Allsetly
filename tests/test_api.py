@@ -147,3 +147,22 @@ def test_docs_use_relative_urls_behind_proxies(client: TestClient) -> None:
     assert page.status_code == 200
     assert "url: 'openapi.json'" in page.text
     assert client.get("/openapi.json").json()["servers"] == [{"url": "."}]
+
+
+def test_unexpected_errors_answer_json_with_the_error_type(
+    api_settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A crash inside a route returns JSON naming the error type, not a bare 500."""
+
+    def boom() -> Settings:
+        raise RuntimeError("secret detail")
+
+    api.dependency_overrides[get_settings] = boom
+    try:
+        response = TestClient(api, raise_server_exceptions=False).get(
+            "/v1/cases/tx-00000000", headers={"X-API-Key": KEY}
+        )
+    finally:
+        api.dependency_overrides.clear()
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Erreur interne de Témoin.", "error": "RuntimeError"}
