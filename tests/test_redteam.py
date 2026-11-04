@@ -141,7 +141,7 @@ def test_challenge_skip_keeps_verdict(
         on_step=received.append,
     )
     assert out.verdict == "CONFORME"
-    assert "skipped" in out.trail[-1].summary
+    assert "non exécuté" in out.trail[-1].summary
     assert [entry.action for entry in received] == ["redteam"]
 
 

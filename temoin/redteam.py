@@ -72,7 +72,7 @@ def challenge_comparison(
         skipped = TrailEntry(
             step=len(entries) + 1,
             action="redteam",
-            summary=f"Devil's advocate skipped ({error})",
+            summary=f"Avocat du diable non exécuté ({error})",
         )
         entries.append(skipped)
         if on_step is not None:
@@ -80,12 +80,14 @@ def challenge_comparison(
         return comparison.model_copy(update={"trail": entries})
     total = len(challenge.objections)
     majors = sum(1 for item in challenge.objections if item.severity == "major")
-    stance = "stands" if challenge.stand_by_verdict else "challenged"
+    stance = "maintenu" if challenge.stand_by_verdict else "contesté"
     entries.append(
         TrailEntry(
             step=len(entries) + 1,
             action="redteam",
-            summary=f"Devil's advocate: {total} objection(s) ({majors} major), verdict {stance}.",
+            summary=(
+                f"Avocat du diable : {total} objection(s) ({majors} majeure(s)), verdict {stance}."
+            ),
         )
     )
     reason = _downgrade_reason(challenge)
@@ -94,7 +96,7 @@ def challenge_comparison(
             TrailEntry(
                 step=len(entries) + 1,
                 action="guardrail",
-                summary=f"Capped to À VÉRIFIER: {reason}.",
+                summary=f"Plafonné à À VÉRIFIER : {reason}.",
             )
         )
         updated = comparison.model_copy(

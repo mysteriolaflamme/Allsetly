@@ -13,6 +13,7 @@ from temoin.schemas import CaseAnswer, Comparison, Report
 logger = logging.getLogger(__name__)
 
 IDK_ANSWER = "Je ne sais pas d'après ce dossier."
+IDK_ANSWERS = {"fr": IDK_ANSWER, "en": "I don't know from this case file."}
 
 
 def build_qa_cache_key(
@@ -52,6 +53,7 @@ def ask_question(
     comparison: Comparison,
     settings: Settings | None = None,
     client: ChatClient | None = None,
+    lang: str = "fr",
 ) -> CaseAnswer:
     """Answer from sealed files only; honest fallback when evidence is missing.
 
@@ -75,12 +77,16 @@ def ask_question(
     try:
         answer = complete_json(
             build_qa_messages(
-                sale=sale, delivery=delivery, comparison=comparison, question=question.strip()
+                sale=sale,
+                delivery=delivery,
+                comparison=comparison,
+                question=question.strip(),
+                lang=lang,
             ),
             CaseAnswer,
             client=active_client,
             model_name=active_settings.model_name,
-            cache_key=build_qa_cache_key(question, sale, delivery, comparison),
+            cache_key=build_qa_cache_key(f"{lang}|{question}", sale, delivery, comparison),
             cache_dir=active_settings.cache_dir,
             max_attempts=active_settings.model_max_attempts,
             retry_wait_seconds=active_settings.model_retry_wait_seconds,
@@ -89,7 +95,9 @@ def ask_question(
         )
     except ModelError as error:
         logger.warning("Case interrogation failed, honest fallback: %s", error)
-        return CaseAnswer(answer=IDK_ANSWER, citations=[], confident=False)
+        return CaseAnswer(answer=IDK_ANSWERS.get(lang, IDK_ANSWER), citations=[], confident=False)
     if not answer.confident:
-        return answer.model_copy(update={"answer": IDK_ANSWER, "citations": []})
+        return answer.model_copy(
+            update={"answer": IDK_ANSWERS.get(lang, IDK_ANSWER), "citations": []}
+        )
     return answer

@@ -392,8 +392,22 @@ Write the answer in French.
 """
 
 
+def _qa_system_prompt(lang: str) -> str:
+    """Grounded QA instructions, answering in the user's language."""
+    if lang == "en":
+        return _QA_SYSTEM_PROMPT.replace(
+            "Write the answer in French.", "Write the answer in English."
+        )
+    return _QA_SYSTEM_PROMPT
+
+
 def build_qa_messages(
-    *, sale: Report, delivery: Report, comparison: Comparison, question: str
+    *,
+    sale: Report,
+    delivery: Report,
+    comparison: Comparison,
+    question: str,
+    lang: str = "fr",
 ) -> list[dict[str, Any]]:
     """Build the grounded question-answering messages for a sealed case."""
     sealed = {
@@ -412,7 +426,7 @@ def build_qa_messages(
         ),
     }
     return [
-        {"role": "system", "content": _QA_SYSTEM_PROMPT},
+        {"role": "system", "content": _qa_system_prompt(lang)},
         {
             "role": "user",
             "content": (

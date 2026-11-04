@@ -80,7 +80,7 @@ def finalize_comparison(
         TrailEntry(
             step=len(entries) + 1,
             action="verdict",
-            summary=f"Model verdict: {draft.verdict} (confidence {draft.confidence}).",
+            summary=f"Verdict du modèle : {draft.verdict} (confiance {draft.confidence}).",
         )
     )
     if capped_reason is not None:
@@ -88,7 +88,7 @@ def finalize_comparison(
             TrailEntry(
                 step=len(entries) + 1,
                 action="guardrail",
-                summary=f"Capped to {verdict}: {capped_reason}.",
+                summary=f"Plafonné à {verdict} : {capped_reason}.",
             )
         )
     if on_step is not None:

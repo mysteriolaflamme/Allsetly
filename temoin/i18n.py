@@ -488,6 +488,31 @@ VERDICTS: dict[str, dict[str, str]] = {
 }
 
 
+# Flaw kinds as the model names them (English) -> display label per language.
+DEFECT_TYPES: dict[str, dict[str, str]] = {
+    "scratch": {"fr": "rayure", "en": "scratch"},
+    "scuff": {"fr": "éraflure", "en": "scuff"},
+    "stain": {"fr": "tache", "en": "stain"},
+    "wear": {"fr": "usure", "en": "wear"},
+    "crack": {"fr": "fissure", "en": "crack"},
+    "dent": {"fr": "bosse", "en": "dent"},
+    "deformation": {"fr": "déformation", "en": "deformation"},
+    "missing": {"fr": "manque", "en": "missing"},
+    "missing part": {"fr": "pièce manquante", "en": "missing part"},
+    "discoloration": {"fr": "décoloration", "en": "discoloration"},
+    "fading": {"fr": "décoloration", "en": "fading"},
+    "yellowing": {"fr": "jaunissement", "en": "yellowing"},
+    "chip": {"fr": "éclat", "en": "chip"},
+    "tear": {"fr": "déchirure", "en": "tear"},
+    "fraying": {"fr": "effilochage", "en": "fraying"},
+    "dirt": {"fr": "salissure", "en": "dirt"},
+    "rust": {"fr": "rouille", "en": "rust"},
+    "hole": {"fr": "trou", "en": "hole"},
+    "break": {"fr": "cassure", "en": "break"},
+    "peeling": {"fr": "écaillage", "en": "peeling"},
+}
+
+
 def t(key: str, lang: str) -> str:
     """Return the UI string for a key, falling back to French then the key."""
     entry = STRINGS.get(key, {})
@@ -498,3 +523,9 @@ def verdict_label(verdict: str, lang: str) -> str:
     """Return the verdict label in the user language."""
     entry = VERDICTS.get(verdict, {})
     return entry.get(lang) or entry.get("fr") or verdict
+
+
+def defect_type_label(kind: str, lang: str) -> str:
+    """Return a flaw kind in the user language; unknown kinds are shown as written."""
+    entry = DEFECT_TYPES.get(kind.strip().lower(), {})
+    return entry.get(lang) or kind

@@ -19,7 +19,7 @@ from temoin.compare import is_fresh
 from temoin.config import ConfigError, Settings, load_settings
 from temoin.evidence import build_board, rows_from_reports
 from temoin.forensics import analyze_photo
-from temoin.i18n import t, verdict_label
+from temoin.i18n import defect_type_label, t, verdict_label
 from temoin.images import ImageError, decode_data_url, draw_defects, prepare_image
 from temoin.meta_api import MetaAPIError, draw_segmentation, segment_image, transcribe_audio
 from temoin.model import ModelError
@@ -114,7 +114,7 @@ def show_report(report: Report, lang: str, photo: Path | None) -> None:
             [
                 {
                     "ID": defect.id,
-                    "Type": defect.type,
+                    "Type": defect_type_label(defect.type, lang),
                     "Zone": defect.zone,
                     t("col_severity", lang): severity_names.get(defect.severity, defect.severity),
                     t("col_impact", lang): impact_names.get(defect.severity, defect.severity),
@@ -442,6 +442,7 @@ def voice_conversation(
                     delivery=tx.delivery_constat,
                     comparison=comparison,
                     settings=settings,
+                    lang=lang,
                 )
             except (ModelError, ConfigError) as error:
                 st.error(str(error))
@@ -630,7 +631,7 @@ def show_video_report(report: VideoReport, lang: str, settings: Settings) -> Non
             [
                 {
                     "ID": flaw.id,
-                    "Type": flaw.type,
+                    "Type": defect_type_label(flaw.type, lang),
                     "Zone": flaw.zone,
                     t("col_severity", lang): severity_names.get(flaw.severity, flaw.severity),
                     t("vid_confirmed", lang): f"{flaw.confirmations}/{len(report.frames)}",

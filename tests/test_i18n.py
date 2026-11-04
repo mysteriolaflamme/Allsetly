@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from temoin.i18n import STRINGS, VERDICTS, t, verdict_label
+from temoin.i18n import STRINGS, VERDICTS, defect_type_label, t, verdict_label
 
 
 def test_every_string_has_french_and_english() -> None:
@@ -39,3 +39,11 @@ def test_app_uses_only_defined_keys() -> None:
     assert used, "no UI keys found in app.py"
     unknown = used - set(STRINGS)
     assert not unknown, f"undefined UI keys: {sorted(unknown)}"
+
+
+def test_flaw_kinds_are_translated_for_display() -> None:
+    """Model flaw kinds (English) read in the user language; unknown kinds pass through."""
+    assert defect_type_label("wear", "fr") == "usure"
+    assert defect_type_label(" Scratch ", "fr") == "rayure"
+    assert defect_type_label("wear", "en") == "wear"
+    assert defect_type_label("usure", "fr") == "usure"

@@ -9,7 +9,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from temoin.i18n import t
+from temoin.i18n import defect_type_label, t
 from temoin.schemas import Comparison, Report
 
 logger = logging.getLogger(__name__)
@@ -70,11 +70,13 @@ def rows_from_reports(
         if sale_defect is None:
             sale_caption = f"{t('board_sale', lang)} · {t('board_missing', lang)}"
         else:
-            sale_caption = f"{t('board_sale', lang)} · {sale_defect.id} ({sale_defect.type})"
+            kind = defect_type_label(sale_defect.type, lang)
+            sale_caption = f"{t('board_sale', lang)} · {sale_defect.id} ({kind})"
         if delivery_defect is None:
             delivery_caption = f"{t('board_delivery', lang)} · {t('board_missing', lang)}"
         else:
-            caption = f"{t('board_delivery', lang)} · {delivery_defect.id} ({delivery_defect.type})"
+            kind = defect_type_label(delivery_defect.type, lang)
+            caption = f"{t('board_delivery', lang)} · {delivery_defect.id} ({kind})"
             delivery_caption = caption
         rows.append(
             BoardRow(

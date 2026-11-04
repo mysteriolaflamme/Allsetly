@@ -265,3 +265,11 @@ def test_ask_command_refuses_tampered_certificate(
     )
     assert main(["ask", str(cert), "--question", "D1 ?"]) == 1
     assert "MODIFIÉ" in capsys.readouterr().err
+
+
+def test_qa_answers_in_english_when_asked() -> None:
+    """The English UI asks the model to answer in English."""
+    from temoin.prompts import _qa_system_prompt
+
+    assert "Write the answer in English." in _qa_system_prompt("en")
+    assert "Write the answer in French." in _qa_system_prompt("fr")

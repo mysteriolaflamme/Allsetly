@@ -59,7 +59,7 @@ def _constat_entry(step: int, label: str, report: Report) -> TrailEntry:
     return TrailEntry(
         step=step,
         action=f"constat_{label}",
-        summary=f"{label} constat: {len(report.defects)} defects, code {code}.",
+        summary=f"Constat {label} : {len(report.defects)} défaut(s), code {code}.",
     )
 
 
@@ -112,7 +112,7 @@ def _execute_logged(
         TrailEntry(
             step=len(trail) + 1,
             action=f"tool:{call.name}",
-            summary=_shorten(f"{call.name} {call.arguments} -> {result.content}"),
+            summary=_shorten(f"Outil {call.name} {call.arguments} → {result.content}"),
         )
     )
     if on_step is not None:
@@ -267,7 +267,7 @@ def run_investigation(
             TrailEntry(
                 step=len(trail) + 1,
                 action="fallback",
-                summary="Agent did not conclude; single-shot verdict.",
+                summary="L'agent n'a pas conclu : verdict en un seul passage.",
             )
         )
         if on_step is not None:
