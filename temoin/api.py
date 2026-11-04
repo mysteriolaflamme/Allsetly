@@ -22,6 +22,8 @@ from datetime import datetime, timedelta
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from temoin.compare import is_fresh
@@ -50,7 +52,20 @@ api = FastAPI(
         "Reasoning runs on Meta Muse Spark Open. Témoin assists a human decision; "
         "it does not replace it."
     ),
+    # Hosting proxies (e.g. Streamlit Cloud's /~/+ prefix) hide the real mount path,
+    # so docs and "Try it out" use URLs relative to /api instead of absolute ones.
+    docs_url=None,
+    redoc_url=None,
+    servers=[{"url": "."}],
+    root_path_in_servers=False,
 )
+
+
+@api.get("/docs", include_in_schema=False)
+def docs() -> HTMLResponse:
+    """Interactive docs that work behind any path prefix."""
+    return get_swagger_ui_html(openapi_url="openapi.json", title="Témoin API")
+
 
 _PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
 

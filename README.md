@@ -9,8 +9,8 @@ runs a multi-step enquiry (autonomous zooms, SAM segmentation, challenge-code
 checks, photo requests), decides under deterministic guardrails, and seals
 every conclusion with its audit trail.
 
-Live demo: publishing on Streamlit Community Cloud — the public link will be
-added here (deploy guide below).
+**Live demo: https://temoin.streamlit.app** · Business API docs:
+https://temoin.streamlit.app/~/+/api/docs
 
 ## Features
 
@@ -126,6 +126,10 @@ OpenAPI docs at **`/api/docs`**. Both front doors share one workflow module
 Every call except `GET /api/v1/health` needs an `X-API-Key` header matching
 one of the comma-separated keys in `TEMOIN_API_KEYS`; with no key configured
 the API stays closed (503).
+
+On Streamlit Community Cloud the app is proxied under `/~/+`, so the hosted
+API base URL is `https://temoin.streamlit.app/~/+/api` (POST calls need a body
+or `Content-Length: 0`).
 
 ```bash
 curl -X POST -H "X-API-Key: $KEY" https://<your-app>/api/v1/cases

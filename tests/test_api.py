@@ -139,3 +139,11 @@ def test_non_image_upload_is_rejected(client: TestClient) -> None:
         files={"photo": ("notes.txt", b"hello", "text/plain")},
     )
     assert response.status_code == 415
+
+
+def test_docs_use_relative_urls_behind_proxies(client: TestClient) -> None:
+    """Docs load the schema relatively and 'Try it out' targets the mount path."""
+    page = client.get("/docs")
+    assert page.status_code == 200
+    assert "url: 'openapi.json'" in page.text
+    assert client.get("/openapi.json").json()["servers"] == [{"url": "."}]
