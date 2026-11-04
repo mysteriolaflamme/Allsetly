@@ -65,3 +65,27 @@ def test_load_settings_reads_meta_api_fields(
         "meta-789",
         "https://meta.example/v9",
     )
+
+
+def test_settings_fall_back_to_environment_when_streamlit_secrets_abort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Outside a script run, Streamlit control exceptions must not break the API."""
+    import streamlit as st
+
+    class ScriptControl(BaseException):
+        pass
+
+    class AbortingSecrets:
+        def __iter__(self):
+            raise ScriptControl
+
+        def keys(self):
+            raise ScriptControl
+
+    monkeypatch.setattr(st, "secrets", AbortingSecrets())
+    monkeypatch.setenv("BASETEN_API_KEY", "env-key")
+    monkeypatch.setenv("TEMOIN_API_KEYS", "k1,k2")
+    settings = load_settings(env_file="does-not-exist.env")
+    assert settings.baseten_api_key == "env-key"
+    assert settings.api_keys == ("k1", "k2")

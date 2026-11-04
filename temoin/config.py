@@ -77,7 +77,12 @@ def _read_streamlit_secrets() -> dict[str, str]:
         import streamlit as st
 
         return {str(key): str(value) for key, value in dict(st.secrets).items()}
-    except Exception:
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except BaseException:
+        # Outside a Streamlit script run (e.g. the /api routes), st.secrets may raise
+        # Streamlit's script-control exceptions (BaseException subclasses). Fall back to
+        # the environment, where Streamlit Cloud also exposes root-level secrets.
         return {}
 
 
